@@ -1,0 +1,29 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 400 120" fill="none">
+  <!-- Water ripple / lake shape -->
+  <path d="M40 55 Q60 35 80 55 Q100 75 120 55 Q140 35 160 55" stroke="#3b82f6" stroke-width="3" stroke-linecap="round" fill="none"/>
+  <path d="M30 68 Q55 48 80 68 Q105 88 130 68 Q155 48 170 68" stroke="#3b82f6" stroke-width="2" stroke-linecap="round" fill="none" opacity="0.5"/>
+
+  <!-- Satellite orbit arc -->
+  <ellipse cx="100" cy="40" rx="55" ry="18" stroke="#22c55e" stroke-width="1.5" stroke-dasharray="4 3" fill="none" opacity="0.6" transform="rotate(-15 100 40)"/>
+
+  <!-- Satellite dot -->
+  <circle cx="148" cy="30" r="3" fill="#22c55e"/>
+  <line x1="145" y1="30" x2="151" y2="30" stroke="#22c55e" stroke-width="1.5"/>
+  <line x1="148" y1="27" x2="148" y2="33" stroke="#22c55e" stroke-width="1.5"/>
+
+  <!-- Text: BANGALORE -->
+  <text x="185" y="48" font-family="system-ui, -apple-system, sans-serif" font-size="28" font-weight="800" letter-spacing="-0.5">
+    <tspan fill="currentColor">BANGALORE</tspan>
+  </text>
+
+  <!-- Text: LAKE WATCH -->
+  <text x="185" y="78" font-family="system-ui, -apple-system, sans-serif" font-size="28" font-weight="800" letter-spacing="-0.5">
+    <tspan fill="#3b82f6">LAKE</tspan>
+    <tspan fill="currentColor" dx="6">WATCH</tspan>
+  </text>
+
+  <!-- Subtle tagline -->
+  <text x="185" y="98" font-family="system-ui, -apple-system, sans-serif" font-size="10" fill="currentColor" opacity="0.4" letter-spacing="3" font-weight="500">
+    SATELLITE-POWERED CIVIC DATA
+  </text>
+</svg>

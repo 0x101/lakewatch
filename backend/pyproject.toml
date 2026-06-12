@@ -1,0 +1,37 @@
+[project]
+name = "lakewatch-backend"
+version = "0.1.0"
+description = "FastAPI backend for LakeWatch"
+requires-python = ">=3.12"
+dependencies = [
+    "fastapi==0.135.3",
+    "uvicorn==0.44.0",
+    "pydantic==2.12.5",
+    "httpx==0.28.1",
+    "geojson==3.2.0",
+    "sqlalchemy==2.0.49",
+    "psycopg2-binary==2.9.11",
+    "python-dotenv==1.1.0",
+    "shapely==2.1.2",
+    "lakewatch-pipeline",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8.0",
+    "pytest-asyncio>=0.23",
+    "ruff>=0.4",
+]
+
+[tool.uv.sources]
+lakewatch-pipeline = { path = "../pipeline", editable = true }
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+
+[build-system]
+requires = ["setuptools>=68.0"]
+build-backend = "setuptools.build_meta"
+
+[tool.ruff]
+line-length = 100

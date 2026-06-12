@@ -1,0 +1,14 @@
+{
+  "_comment": "Replace with your city — see docs/SETUP.md. These Bengaluru values pair with examples/sample-lakes.geojson as a working example.",
+  "city": "Bengaluru",
+  "brand": "Namma Lakes",
+  "domain": "nammalakes.com",
+  "center": { "lng": 77.59, "lat": 12.97 },
+  "zoom": 11,
+  "language_label_field": "name_kannada",
+  "attribution": [
+    "Copernicus Sentinel-2 L2A via Google Earth Engine. 10m resolution, ~5-day revisit.",
+    "CSEI-ATREE, Centre for Social and Environmental Innovation. CC BY-SA 4.0."
+  ],
+  "relatable_units": [{"id":"football","label":"football fields","area_m2":7140,"emoji":"⚽"},{"id":"chinnaswamy","label":"Chinnaswamy Stadiums","area_m2":18000,"emoji":"🏏"},{"id":"cubbon","label":"Cubbon Parks","area_m2":767000,"emoji":"🌳"}]
+}

@@ -1,0 +1,40 @@
+# Secrets & environment
+.env
+.env.*
+!.env.example
+*.local
+# Service-account / API key files (never commit credentials)
+*service*account*.json
+*service-account*.json
+gee-key*.json
+*-key.json
+credentials.json
+
+# Python
+*.pyc
+__pycache__/
+.venv/
+.pytest_cache/
+.ruff_cache/
+*.egg-info/
+
+# Pipeline artifacts (GeoTIFFs, rendered frames, GIFs, videos)
+pipeline/data/
+pipeline/.backfill_checkpoint.json
+
+# Data exports / dumps
+data/export/
+data/opencity/
+*.dump
+*.sql
+
+# Node / Next.js
+node_modules/
+.next/
+frontend/tsconfig.tsbuildinfo
+next-env.d.ts
+
+# Editor / OS
+.DS_Store
+.idea/
+.vscode/

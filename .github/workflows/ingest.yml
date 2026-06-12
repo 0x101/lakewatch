@@ -1,0 +1,57 @@
+name: Incremental Ingestion
+
+on:
+  schedule:
+    - cron: '0 6 */5 * *'  # Every 5 days at 06:00 UTC
+  workflow_dispatch: {}  # Manual trigger
+
+concurrency:
+  group: ingest
+  cancel-in-progress: false
+
+jobs:
+  ingest:
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: astral-sh/setup-uv@v5
+
+      - name: Check required secrets
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+          GEE_PROJECT_ID: ${{ secrets.GEE_PROJECT_ID }}
+          GEE_KEY: ${{ secrets.GEE_SERVICE_ACCOUNT_KEY_JSON }}
+        run: |
+          missing=""
+          [ -z "$DATABASE_URL" ] && missing="$missing DATABASE_URL"
+          [ -z "$GEE_PROJECT_ID" ] && missing="$missing GEE_PROJECT_ID"
+          [ -z "$GEE_KEY" ] && missing="$missing GEE_SERVICE_ACCOUNT_KEY_JSON"
+          if [ -n "$missing" ]; then
+            echo "::error::Missing repo secrets:$missing — set them with 'gh secret set <NAME>'"
+            exit 1
+          fi
+
+      - name: Write GEE key file
+        env:
+          GEE_KEY: ${{ secrets.GEE_SERVICE_ACCOUNT_KEY_JSON }}
+        run: |
+          printf '%s' "$GEE_KEY" > /tmp/gee-key.json
+          python3 -c "import json; json.load(open('/tmp/gee-key.json'))" \
+            || { echo "::error::GEE key file is not valid JSON"; exit 1; }
+
+      - name: Install dependencies
+        run: cd pipeline && uv sync
+
+      - name: Run incremental ingestion
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+          GEE_PROJECT_ID: ${{ secrets.GEE_PROJECT_ID }}
+          GEE_SERVICE_ACCOUNT_KEY: /tmp/gee-key.json
+        run: cd pipeline && uv run python -m pipeline.scripts.incremental_ingest --lake-limit 50
+
+      - name: Cleanup
+        if: always()
+        run: rm -f /tmp/gee-key.json
