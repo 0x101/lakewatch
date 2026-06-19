@@ -38,3 +38,7 @@ next-env.d.ts
 .DS_Store
 .idea/
 .vscode/
+
+# Planning / agent artifacts (private — never commit to the public fork)
+.planning/
+.claude/
