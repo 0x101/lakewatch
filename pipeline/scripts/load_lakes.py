@@ -123,7 +123,7 @@ def load_lakes_from_geojson(geojson_path: str, dry_run: bool = False) -> int:
             values = {
                 "id": lake_id,
                 "name": name,
-                "name_kannada": props.get("name_local") or props.get("name_kannada"),
+                "name_local": props.get("name_local") or props.get("name_kannada"),
                 "latitude": lat,
                 "longitude": lon,
                 "boundary_geojson": geojson_str,

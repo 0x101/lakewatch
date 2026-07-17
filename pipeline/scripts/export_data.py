@@ -12,7 +12,7 @@ Usage:
   python -m pipeline.scripts.export_data                    # export all
   python -m pipeline.scripts.export_data --format json      # JSON only
   python -m pipeline.scripts.export_data --format sql       # SQL dump only
-  python -m pipeline.scripts.export_data --lake bellandur-lake  # single lake
+  python -m pipeline.scripts.export_data --lake my-lake-id      # single lake
 """
 
 import argparse
@@ -30,7 +30,7 @@ load_dotenv()
 
 from pipeline.db.database import get_session
 
-# Generic tables (always present). The Bangalore ext tables (EMPRIRecord,
+# Generic tables (always present). The city ext tables (EMPRIRecord,
 # KSPCBMeasurement, Stream, StreamLakeConnection) are imported via the
 # HAS_CITY_EXTENSIONS guard so this SHARED script imports cleanly in the public
 # "lakewatch" repo where models_ext.py does not exist. main() exports only core
@@ -84,7 +84,7 @@ def export_lakes(session, lake_filter=None):
             "properties": {
                 "id": lake.id,
                 "name": lake.name,
-                "name_kannada": lake.name_kannada,
+                "name_local": lake.name_local,
                 "latitude": lake.latitude,
                 "longitude": lake.longitude,
                 "ward": lake.ward,

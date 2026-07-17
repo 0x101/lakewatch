@@ -30,7 +30,7 @@ class Lake(Base):
 
     id: Mapped[str] = mapped_column(String, primary_key=True)  # slugified name
     name: Mapped[str] = mapped_column(String, nullable=False)
-    name_kannada: Mapped[str | None] = mapped_column(String, nullable=True)
+    name_local: Mapped[str | None] = mapped_column(String, nullable=True)
     latitude: Mapped[float] = mapped_column(Float, nullable=False)
     longitude: Mapped[float] = mapped_column(Float, nullable=False)
     boundary_geojson: Mapped[str] = mapped_column(
@@ -136,7 +136,7 @@ class TimelapseFrame(Base):
     )
 
 
-# --- Bangalore extensions (re-exported for backward compat + metadata registration) ---
+# --- City extensions (re-exported for backward compat + metadata registration) ---
 # Imported at the BOTTOM so Base is already defined (models_ext imports Base from here).
 # This registers the ext tables on the shared Base.metadata (alembic + tests see them)
 # AND keeps `from pipeline.db.models import EMPRIRecord` working for query modules/tests.

@@ -87,7 +87,7 @@ def get_lake(lake_id: str, db: Session = Depends(get_db)):
         citizen_group=lake.citizen_group,
         area_hectares=lake.area_hectares,
         boundary_area_m2=lake.boundary_area_m2,
-        name_kannada=lake.name_kannada,
+        name_local=lake.name_local,
         latest_observation_date=(
             str(stats.latest_observation_date) if stats and stats.latest_observation_date else None
         ),

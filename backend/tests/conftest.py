@@ -17,7 +17,7 @@ def make_lake(**overrides):
     defaults = {
         "id": "bellandur-lake",
         "name": "Bellandur Lake",
-        "name_kannada": None,
+        "name_local": None,
         "latitude": 12.9373,
         "longitude": 77.6695,
         "boundary_geojson": json.dumps(

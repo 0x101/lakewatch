@@ -2,13 +2,13 @@
 
 Single command that orchestrates: frame selection -> GEE export ->
 frame rendering -> TimelapseFrame upsert -> GIF/video assembly ->
-R2 upload. Produces the complete Bellandur timelapse from database
+R2 upload. Produces a lake's complete timelapse from database
 observations to shareable artifacts.
 
 Usage:
-    python -m pipeline.timelapse.cli bellandur-lake
-    python -m pipeline.timelapse.cli bellandur-lake --skip-upload
-    python -m pipeline.timelapse.cli bellandur-lake --skip-export --skip-upload
+    python -m pipeline.timelapse.cli my-lake-id
+    python -m pipeline.timelapse.cli my-lake-id --skip-upload
+    python -m pipeline.timelapse.cli my-lake-id --skip-export --skip-upload
 """
 
 import argparse
@@ -53,7 +53,7 @@ def generate_timelapse(
     (reuses existing frames) and --skip-upload for local-only runs.
 
     Args:
-        lake_id: Lake identifier (slug, e.g., "bellandur-lake").
+        lake_id: Lake identifier (slug, e.g., "my-lake-id").
         output_dir: Base output directory. Defaults to pipeline/data.
         music_path: Optional path to background music MP3 for video.
         skip_upload: If True, skip R2 upload step.
@@ -237,7 +237,7 @@ def main():
     )
     parser.add_argument(
         "lake_id",
-        help="Lake identifier (slug, e.g., bellandur-lake)",
+        help="Lake identifier (slug, e.g., my-lake-id)",
     )
     parser.add_argument(
         "--output-dir",

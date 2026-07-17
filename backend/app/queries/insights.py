@@ -7,21 +7,10 @@ from sqlalchemy import and_, extract, func, select
 from sqlalchemy.orm import Session
 
 from pipeline.db.models import (
-    HAS_CITY_EXTENSIONS,
     Lake,
     LakeStats,
     Observation,
 )
-
-# Bangalore city extensions (KSPCB lab data, EMPRI ground truth). These tables only
-# exist in the private repo; in the public "lakewatch" build HAS_CITY_EXTENSIONS is
-# False and these names are None. Every query that touches them gates on the flag and
-# returns the SAME response shape with empty/null KSPCB values when they are absent.
-if HAS_CITY_EXTENSIONS:
-    from pipeline.db.models import EMPRIRecord, KSPCBMeasurement
-else:
-    EMPRIRecord = None  # type: ignore[assignment,misc]
-    KSPCBMeasurement = None  # type: ignore[assignment,misc]
 
 
 def get_raw_observations(
@@ -79,62 +68,6 @@ def get_all_lake_stats_with_names(db: Session) -> list:
         .order_by(LakeStats.health_score.asc().nullslast())
     )
     return list(db.execute(stmt).all())
-
-
-def get_cross_reference(db: Session, lake_id: str) -> list[dict]:
-    """Cross-reference satellite algae with KSPCB data by month."""
-    # Get monthly average satellite algae
-    sat_stmt = (
-        select(
-            func.to_char(Observation.observation_date, "YYYY-MM").label("month"),
-            func.avg(Observation.algae_fraction).label("avg_algae"),
-        )
-        .where(Observation.lake_id == lake_id)
-        .group_by(func.to_char(Observation.observation_date, "YYYY-MM"))
-        .order_by(func.to_char(Observation.observation_date, "YYYY-MM"))
-    )
-    sat_data = {r.month: r.avg_algae for r in db.execute(sat_stmt).all()}
-
-    # Get KSPCB measurements (city extension only — empty when ext tables absent).
-    kspcb_data = {}
-    if HAS_CITY_EXTENSIONS:
-        kspcb_stmt = (
-            select(KSPCBMeasurement)
-            .where(KSPCBMeasurement.lake_id == lake_id)
-            .order_by(KSPCBMeasurement.measurement_date)
-        )
-        for m in db.execute(kspcb_stmt).scalars().all():
-            month_key = m.measurement_date.strftime("%Y-%m")
-            kspcb_data[month_key] = m
-
-    # Merge
-    all_months = sorted(set(list(sat_data.keys()) + list(kspcb_data.keys())))
-    entries = []
-    for month in all_months:
-        sat_algae = sat_data.get(month)
-        kspcb = kspcb_data.get(month)
-
-        agreement = None
-        if sat_algae is not None and kspcb is not None:
-            # High algae + high BOD = consistent
-            high_algae = sat_algae > 0.1
-            high_bod = kspcb.bod_mg_l is not None and kspcb.bod_mg_l > 30
-            if high_algae == high_bod:
-                agreement = "consistent"
-            else:
-                agreement = "contradictory"
-
-        entries.append({
-            "month": month,
-            "satellite_algae_fraction": round(sat_algae, 4) if sat_algae else None,
-            "kspcb_bod": kspcb.bod_mg_l if kspcb else None,
-            "kspcb_cod": kspcb.cod_mg_l if kspcb else None,
-            "kspcb_do": kspcb.dissolved_oxygen_mg_l if kspcb else None,
-            "kspcb_classification": kspcb.classification if kspcb else None,
-            "agreement": agreement,
-        })
-
-    return entries
 
 
 def get_outliers(db: Session, limit: int = 50) -> list[dict]:
@@ -249,33 +182,6 @@ def get_city_summary(db: Session) -> dict:
     )
     row = db.execute(stmt).one()
 
-    # Most common KSPCB class: mode of latest classification per lake.
-    # City extension only — None when ext tables absent (shape unchanged).
-    most_common = None
-    if HAS_CITY_EXTENSIONS:
-        latest_kspcb = (
-            select(
-                KSPCBMeasurement.lake_id,
-                KSPCBMeasurement.classification,
-                func.row_number()
-                .over(
-                    partition_by=KSPCBMeasurement.lake_id,
-                    order_by=KSPCBMeasurement.measurement_date.desc(),
-                )
-                .label("rn"),
-            )
-            .where(KSPCBMeasurement.classification.isnot(None))
-            .subquery()
-        )
-        mode_stmt = (
-            select(latest_kspcb.c.classification)
-            .where(latest_kspcb.c.rn == 1)
-            .group_by(latest_kspcb.c.classification)
-            .order_by(func.count().desc())
-            .limit(1)
-        )
-        most_common = db.execute(mode_stmt).scalar_one_or_none()
-
     return {
         "total_lakes": row.total_lakes or 0,
         "total_observations": row.total_observations or 0,
@@ -294,7 +200,6 @@ def get_city_summary(db: Session) -> dict:
         "avg_algae_fraction": (
             round(row.avg_algae_fraction, 4) if row.avg_algae_fraction else None
         ),
-        "most_common_kspcb_class": most_common,
         "lakes_improving": row.lakes_improving,
         "lakes_declining": row.lakes_declining,
     }
@@ -317,37 +222,9 @@ def get_yearly_trends(db: Session) -> list[dict]:
     )
     obs_rows = {int(r.year): r for r in db.execute(obs_stmt).all()}
 
-    # KSPCB classification distribution by year (city extension only).
-    # Empty when ext tables absent — each year still emits an all-zeros distribution.
-    kspcb_by_year: dict[int, dict[str, int]] = {}
-    if HAS_CITY_EXTENSIONS:
-        kspcb_stmt = (
-            select(
-                extract("year", KSPCBMeasurement.measurement_date)
-                .cast(SAFloat)
-                .label("year"),
-                KSPCBMeasurement.classification,
-                func.count().label("cnt"),
-            )
-            .where(KSPCBMeasurement.classification.isnot(None))
-            .group_by(
-                extract("year", KSPCBMeasurement.measurement_date),
-                KSPCBMeasurement.classification,
-            )
-            .order_by(extract("year", KSPCBMeasurement.measurement_date))
-        )
-        kspcb_rows = db.execute(kspcb_stmt).all()
-        for r in kspcb_rows:
-            yr = int(r.year)
-            kspcb_by_year.setdefault(yr, {})
-            kspcb_by_year[yr][r.classification] = r.cnt
-
-    all_years = sorted(set(list(obs_rows.keys()) + list(kspcb_by_year.keys())))
-
     results = []
-    for yr in all_years:
-        obs = obs_rows.get(yr)
-        kspcb_dist = kspcb_by_year.get(yr, {})
+    for yr in sorted(obs_rows.keys()):
+        obs = obs_rows[yr]
         results.append({
             "year": yr,
             "avg_health": round(obs.avg_health, 1) if obs and obs.avg_health else None,
@@ -360,13 +237,6 @@ def get_yearly_trends(db: Session) -> list[dict]:
                 round(obs.avg_algae, 4) if obs and obs.avg_algae else None
             ),
             "observation_count": obs.observation_count if obs else 0,
-            "kspcb_class_distribution": {
-                "A": kspcb_dist.get("A", 0),
-                "B": kspcb_dist.get("B", 0),
-                "C": kspcb_dist.get("C", 0),
-                "D": kspcb_dist.get("D", 0),
-                "E": kspcb_dist.get("E", 0),
-            },
         })
 
     return results
@@ -478,65 +348,6 @@ def get_rankings(db: Session, category: str, limit: int = 20) -> list[dict]:
             "custodian": r.custodian,
         }
         for i, r in enumerate(rows)
-    ]
-
-
-def get_correlation(db: Session) -> list[dict]:
-    """Satellite health score vs KSPCB classification correlation."""
-    # Correlation is inherently KSPCB-vs-satellite; with no KSPCB extension there is
-    # nothing to correlate, so return an empty list (endpoint returns empty entries).
-    if not HAS_CITY_EXTENSIONS:
-        return []
-
-    # Get latest KSPCB measurement per lake
-    latest_kspcb = (
-        select(
-            KSPCBMeasurement.lake_id,
-            KSPCBMeasurement.classification,
-            KSPCBMeasurement.bod_mg_l,
-            func.row_number()
-            .over(
-                partition_by=KSPCBMeasurement.lake_id,
-                order_by=KSPCBMeasurement.measurement_date.desc(),
-            )
-            .label("rn"),
-        )
-        .subquery()
-    )
-
-    stmt = (
-        select(
-            LakeStats.lake_id,
-            Lake.name.label("lake_name"),
-            LakeStats.health_score,
-            latest_kspcb.c.classification.label("latest_kspcb_class"),
-            latest_kspcb.c.bod_mg_l.label("latest_bod"),
-            LakeStats.mean_algae_fraction.label("latest_algae_fraction"),
-        )
-        .join(Lake, LakeStats.lake_id == Lake.id)
-        .join(
-            latest_kspcb,
-            (LakeStats.lake_id == latest_kspcb.c.lake_id)
-            & (latest_kspcb.c.rn == 1),
-        )
-        .order_by(LakeStats.health_score.asc().nullslast())
-    )
-
-    rows = db.execute(stmt).all()
-    return [
-        {
-            "lake_id": r.lake_id,
-            "lake_name": r.lake_name,
-            "health_score": round(r.health_score, 1) if r.health_score else None,
-            "latest_kspcb_class": r.latest_kspcb_class,
-            "latest_bod": round(r.latest_bod, 2) if r.latest_bod else None,
-            "latest_algae_fraction": (
-                round(r.latest_algae_fraction, 4)
-                if r.latest_algae_fraction
-                else None
-            ),
-        }
-        for r in rows
     ]
 
 

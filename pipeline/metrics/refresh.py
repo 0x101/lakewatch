@@ -25,7 +25,7 @@ def refresh_lake_stats(lake_id: str, session=None) -> dict:
     using ON CONFLICT DO UPDATE on lake_id.
 
     Args:
-        lake_id: Lake identifier (e.g., "bellandur-lake").
+        lake_id: Lake identifier (e.g., "my-lake-id").
         session: SQLAlchemy session. Created via get_session() if None.
 
     Returns:

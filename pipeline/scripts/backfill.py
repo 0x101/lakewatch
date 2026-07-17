@@ -1,8 +1,8 @@
 """Convenience CLI entry point for historical backfill.
 
 Usage:
-    python -m pipeline.scripts.backfill --lake bellandur-lake
-    python -m pipeline.scripts.backfill --lake bellandur-lake --start-year 2020
+    python -m pipeline.scripts.backfill --lake my-lake-id
+    python -m pipeline.scripts.backfill --lake my-lake-id --start-year 2020
 
 Delegates to pipeline.scripts.run_pipeline.main().
 """

@@ -7,8 +7,6 @@ from app.deps import get_db
 from app.queries.insights import (
     get_all_lake_stats_with_names,
     get_city_summary,
-    get_correlation,
-    get_cross_reference,
     get_movers,
     get_outliers,
     get_pulse,
@@ -20,10 +18,6 @@ from app.queries.insights import (
 )
 from app.schemas.insights import (
     CitySummary,
-    CorrelationEntry,
-    CorrelationResponse,
-    CrossReferenceEntry,
-    CrossReferenceResponse,
     CustodianStatsEntry,
     CustodianStatsResponse,
     LakeStatsRow,
@@ -43,7 +37,6 @@ from app.schemas.insights import (
     RawObservationsResponse,
     SeasonalResponse,
     TrendsResponse,
-    YearlyKSPCBDistribution,
     YearlyTrend,
 )
 
@@ -105,19 +98,6 @@ def list_lake_stats(db: Session = Depends(get_db)):
     )
 
 
-@router.get(
-    "/lakes/{lake_id}/cross-reference",
-    response_model=CrossReferenceResponse,
-)
-def get_lake_cross_reference(lake_id: str, db: Session = Depends(get_db)):
-    """Cross-reference satellite algae with KSPCB lab data by month."""
-    entries = get_cross_reference(db, lake_id)
-    return CrossReferenceResponse(
-        lake_id=lake_id,
-        entries=[CrossReferenceEntry(**e) for e in entries],
-    )
-
-
 @router.get("/insights/by-custodian", response_model=CustodianStatsResponse)
 def list_stats_by_custodian(db: Session = Depends(get_db)):
     """Lake health stats grouped by custodian agency."""
@@ -165,9 +145,6 @@ def yearly_trends(db: Session = Depends(get_db)):
                 total_water_area=y["total_water_area"],
                 avg_algae=y["avg_algae"],
                 observation_count=y["observation_count"],
-                kspcb_class_distribution=YearlyKSPCBDistribution(
-                    **y["kspcb_class_distribution"]
-                ),
             )
             for y in years
         ],
@@ -198,15 +175,6 @@ def lake_rankings(
     return RankingsResponse(
         category=category,
         entries=[RankingEntry(**e) for e in entries],
-    )
-
-
-@router.get("/insights/correlation", response_model=CorrelationResponse)
-def satellite_kspcb_correlation(db: Session = Depends(get_db)):
-    """Satellite health score vs KSPCB classification correlation."""
-    entries = get_correlation(db)
-    return CorrelationResponse(
-        entries=[CorrelationEntry(**e) for e in entries],
     )
 
 

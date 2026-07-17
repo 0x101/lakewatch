@@ -64,8 +64,19 @@ def verify_gee_connection() -> dict:
     initialize_gee()
 
     # A small sample bounding box (lon/lat) used only to confirm data access.
-    # Replace freely; any region with Sentinel-2 coverage works.
-    bbox = ee.Geometry.Rectangle([77.63, 12.92, 77.70, 12.95])
+    # Override with GEE_VERIFY_BBOX=min_lng,min_lat,max_lng,max_lat; the default
+    # is just a connectivity-check example — any bbox with Sentinel-2 coverage works.
+    bbox_env = os.getenv("GEE_VERIFY_BBOX")
+    if bbox_env:
+        coords = [float(v) for v in bbox_env.split(",")]
+        if len(coords) != 4:
+            raise ValueError(
+                "GEE_VERIFY_BBOX must be 4 comma-separated numbers: "
+                "min_lng,min_lat,max_lng,max_lat"
+            )
+    else:
+        coords = [77.63, 12.92, 77.70, 12.95]
+    bbox = ee.Geometry.Rectangle(coords)
 
     collection = (
         ee.ImageCollection("COPERNICUS/S2_SR_HARMONIZED")

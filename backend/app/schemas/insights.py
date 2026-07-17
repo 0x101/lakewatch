@@ -47,25 +47,6 @@ class LakeStatsTableResponse(BaseModel):
     stats: list[LakeStatsRow]
 
 
-class CrossReferenceEntry(BaseModel):
-    """Cross-reference between satellite and ground-truth data for a month."""
-
-    month: str
-    satellite_algae_fraction: float | None = None
-    kspcb_bod: float | None = None
-    kspcb_cod: float | None = None
-    kspcb_do: float | None = None
-    kspcb_classification: str | None = None
-    agreement: str | None = None  # "consistent", "contradictory", "partial"
-
-
-class CrossReferenceResponse(BaseModel):
-    """Cross-reference data for a lake."""
-
-    lake_id: str
-    entries: list[CrossReferenceEntry]
-
-
 class OutlierEntry(BaseModel):
     """Flagged outlier observation."""
 
@@ -115,19 +96,8 @@ class CitySummary(BaseModel):
     struggling_count: int = 0
     healthy_count: int = 0
     avg_algae_fraction: float | None = None
-    most_common_kspcb_class: str | None = None
     lakes_improving: int = 0
     lakes_declining: int = 0
-
-
-class YearlyKSPCBDistribution(BaseModel):
-    """KSPCB classification counts for a single year."""
-
-    A: int = 0
-    B: int = 0
-    C: int = 0
-    D: int = 0
-    E: int = 0
 
 
 class YearlyTrend(BaseModel):
@@ -138,7 +108,6 @@ class YearlyTrend(BaseModel):
     total_water_area: float | None = None
     avg_algae: float | None = None
     observation_count: int = 0
-    kspcb_class_distribution: YearlyKSPCBDistribution = YearlyKSPCBDistribution()
 
 
 class TrendsResponse(BaseModel):
@@ -178,23 +147,6 @@ class RankingsResponse(BaseModel):
 
     category: str
     entries: list[RankingEntry]
-
-
-class CorrelationEntry(BaseModel):
-    """Satellite vs KSPCB correlation for a single lake."""
-
-    lake_id: str
-    lake_name: str
-    health_score: float | None = None
-    latest_kspcb_class: str | None = None
-    latest_bod: float | None = None
-    latest_algae_fraction: float | None = None
-
-
-class CorrelationResponse(BaseModel):
-    """Satellite health score vs KSPCB classification correlation."""
-
-    entries: list[CorrelationEntry]
 
 
 class MoverEntry(BaseModel):

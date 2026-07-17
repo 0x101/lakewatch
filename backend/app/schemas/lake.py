@@ -54,7 +54,7 @@ class LakeDetail(BaseModel):
     citizen_group: str | None = None
     area_hectares: float | None = None
     boundary_area_m2: float | None = None
-    name_kannada: str | None = None
+    name_local: str | None = None
     latest_observation_date: str | None = None
     peak_algae_month: int | None = None
     seasonal_amplitude: float | None = None

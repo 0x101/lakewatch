@@ -31,7 +31,7 @@ def run_pipeline(
         4. Run year-by-year backfill with checkpoint resumability
 
     Args:
-        lake_slug: Lake identifier (e.g., "bellandur-lake").
+        lake_slug: Lake identifier (e.g., "my-lake-id").
         start_year: First year to process (inclusive).
         end_year: Last year to process (inclusive).
 
@@ -89,7 +89,7 @@ def main():
     parser.add_argument(
         "--lake",
         required=True,
-        help='Lake slug identifier (e.g., "bellandur-lake")',
+        help='Lake slug identifier (e.g., "my-lake-id")',
     )
     parser.add_argument(
         "--start-year",

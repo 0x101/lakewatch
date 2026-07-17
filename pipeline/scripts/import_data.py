@@ -5,7 +5,7 @@ Run this on production after creating the database and running migrations.
 
 Usage:
   python -m pipeline.scripts.import_data                    # import all
-  python -m pipeline.scripts.import_data --lake bellandur-lake  # single lake
+  python -m pipeline.scripts.import_data --lake my-lake-id      # single lake
   python -m pipeline.scripts.import_data --dry-run          # show counts only
 """
 
@@ -63,7 +63,7 @@ def import_lakes(session, lake_filter=None, dry_run=False):
         stmt = pg_insert(Lake).values(
             id=props["id"],
             name=props["name"],
-            name_kannada=props.get("name_kannada"),
+            name_local=props.get("name_local") or props.get("name_kannada"),
             latitude=props["latitude"],
             longitude=props["longitude"],
             boundary_geojson=geojson_str,
