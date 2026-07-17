@@ -190,22 +190,28 @@ needed in dev.
 
 ## 7. Configure for your city
 
-Edit **`city.config.json`** and the identical **`frontend/city.config.json`**:
+Edit **`city.config.json`** at the repo root. It's the single source of truth
+for site identity — every brand string, page title, share text, OG image, and
+footer attribution in the frontend reads from it. Never edit
+`frontend/city.config.json` directly: it's a synced copy (Turbopack can't
+import outside the frontend root), refreshed automatically by the `predev`/
+`prebuild` hook (`frontend/scripts/sync-city-config.mjs`).
 
 | Field                   | What it does                                                |
 | ----------------------- | ----------------------------------------------------------- |
-| `city`, `brand`, `domain` | Page titles and copy                                      |
+| `city`, `brand`, `domain` | Site title, page metadata, share copy, OG images, sidebar branding |
 | `center`, `zoom`        | Initial map view                                            |
-| `language_label_field`  | Optional local-language name field on lakes                 |
-| `attribution`           | Strings shown in the UI (keep the Sentinel-2 attribution)   |
+| `local_language`        | Label for the optional local-language lake name (set a `name_local` property per feature in your GeoJSON) |
+| `attribution`           | Strings shown in footers and the about page (keep the Sentinel-2 attribution) |
 | `relatable_units`       | "X football fields" style comparators for areas             |
 
 Optional polish in **`frontend/src/data/lake-enrichment.ts`**: map lake ids to
 display names, alternate/search names, size tiers, and map zones. It's empty by
 default and every lookup falls back gracefully.
 
-The page bodies (about/overview/pulse) contain some default Bengaluru-flavored
-copy — search the `frontend/src/app/` tree and adjust wording to taste.
+The about page is generic (methodology, attribution, a "run this for your
+city" section) and overview-page findings are computed from your data — a
+fresh fork shows your city's name everywhere without touching components.
 
 ---
 
@@ -283,6 +289,7 @@ JSON before running.
 | `R2_SECRET_KEY`                | pipeline           | R2 secret key (optional)                                |
 | `R2_BUCKET`                    | pipeline           | R2 bucket name (optional)                               |
 | `R2_PUBLIC_URL`                | pipeline           | Public base URL for the bucket (optional)               |
+| `GEE_VERIFY_BBOX`            | pipeline           | Optional `min_lng,min_lat,max_lng,max_lat` for the `verify_gee` connectivity check |
 | `LAKEWATCH_WATERMARK`          | pipeline           | Timelapse watermark text (defaults to "LakeWatch")      |
 | `NEXT_PUBLIC_MAPBOX_TOKEN`     | frontend           | Mapbox access token                                     |
 | `BACKEND_URL`                  | frontend           | URL the frontend proxies API/frame requests to          |

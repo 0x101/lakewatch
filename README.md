@@ -124,10 +124,14 @@ Open http://localhost:3000.
 
 ## Fork it for your city
 
-1. **`city.config.json`** (and the copy in `frontend/`) — set `city`, `brand`,
-   `domain`, map `center`/`zoom`, attribution, and the "relatable units" used
-   to make areas legible (football fields, parks, etc.). The two files are kept
-   identical; the frontend imports `frontend/city.config.json`.
+1. **`city.config.json`** (repo root) — set `city`, `brand`, `domain`, map
+   `center`/`zoom`, `local_language`, attribution, and the "relatable units"
+   used to make areas legible (football fields, parks, etc.). All site
+   branding and copy reads from this file. Edit the root file only: the
+   frontend's copy (`frontend/city.config.json`) is refreshed automatically by
+   `npm run dev` / `npm run build` (via `frontend/scripts/sync-city-config.mjs`
+   — Turbopack can't import outside the frontend root, so it's a synced copy,
+   not a symlink).
 2. **Lake boundaries** — replace `examples/sample-lakes.geojson` with your
    city's lakes (a GeoJSON FeatureCollection; only `name` is required per
    feature). See `pipeline/scripts/load_lakes.py` for the exact format.
@@ -160,8 +164,9 @@ core**, so you can still pull upstream updates cleanly:
 - **`frontend/src/lib/api-ext.ts`** — fetchers for your endpoints. No-op
   upstream (returns empty data), so shared hooks degrade to "no city data".
 - **`frontend/src/components/extensions/index.tsx`** — UI slots
-  (`LakeDetailExtensions`, `LakeDataExtensions`, `InsightsExtensions`) that
-  render your cards on the lake-detail and insights pages. No-op upstream.
+  (`LakeDetailExtensions`, `LakeDataExtensions`, `OverviewExtensions`,
+  `InsightsExtensions`) rendered by the shared lake-detail and overview
+  pages. No-op upstream.
 
 The reference implementation is **Bangalore Lake Watch**
 ([nammalakes.com](https://nammalakes.com)), which mounts water-quality lab data,
