@@ -1,6 +1,7 @@
 import { ImageResponse } from "next/og";
+import { BRAND, CITY, DOMAIN } from "@/lib/city.config";
 
-export const alt = "Namma Lakes Pulse — what changed at Bangalore's lakes";
+export const alt = `${BRAND} Pulse — what changed at ${CITY}'s lakes`;
 export const size = { width: 1200, height: 630 };
 export const contentType = "image/png";
 export const revalidate = 3600;
@@ -60,7 +61,7 @@ function FallbackCard() {
       }}
     >
       <div style={{ fontSize: 56, fontWeight: 700, display: "flex" }}>
-        Namma Lakes Pulse
+        {BRAND} Pulse
       </div>
       <div
         style={{
@@ -70,7 +71,7 @@ function FallbackCard() {
           display: "flex",
         }}
       >
-        What changed at Bangalore&apos;s lakes
+        What changed at {CITY}&apos;s lakes
       </div>
     </div>
   );
@@ -115,7 +116,7 @@ export default async function Image() {
         {/* Title */}
         <div style={{ display: "flex", flexDirection: "column" }}>
           <div style={{ fontSize: 56, fontWeight: 800, display: "flex" }}>
-            Namma Lakes Pulse
+            {BRAND} Pulse
           </div>
           <div
             style={{
@@ -125,7 +126,7 @@ export default async function Image() {
               display: "flex",
             }}
           >
-            What changed at Bangalore&apos;s lakes
+            What changed at {CITY}&apos;s lakes
           </div>
         </div>
 
@@ -196,7 +197,7 @@ export default async function Image() {
           }}
         >
           <div style={{ fontSize: 20, color: "#666", display: "flex" }}>
-            nammalakes.com/pulse
+            {DOMAIN}/pulse
           </div>
           <div style={{ fontSize: 16, color: "#666", display: "flex" }}>
             Satellite-powered lake health tracking

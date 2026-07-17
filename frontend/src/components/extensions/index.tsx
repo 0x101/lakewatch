@@ -1,7 +1,7 @@
 /**
- * Frontend extension slots — your city's lake-detail UI mounts here.
+ * Frontend extension slots — your city's extra UI mounts here.
  *
- * Shared consumers (LakeDetailClient, InsightsClient) render these named
+ * Shared consumers (LakeDetailClient, OverviewClient) render these named
  * slots without importing any city-specific component, hook, or markup
  * directly. That keeps the shared files identical to upstream LakeWatch, so
  * pulling new releases stays conflict-free.
@@ -35,5 +35,13 @@ export function LakeDataExtensions({ lakeId }: { lakeId: string }) {
 
 /** Insights-page extension seam. No-op upstream. */
 export function InsightsExtensions() {
+  return null;
+}
+
+/**
+ * City-overview extensions — mounts beside the yearly health-trend chart
+ * (e.g. a city-specific yearly breakdown chart). No-op upstream.
+ */
+export function OverviewExtensions() {
   return null;
 }

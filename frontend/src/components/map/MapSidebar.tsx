@@ -3,6 +3,7 @@
 import { useMemo } from "react";
 import Link from "next/link";
 import { useLakes } from "@/hooks/useLakes";
+import { BRAND } from "@/lib/city.config";
 import { getHealthColor } from "@/lib/constants";
 import { useUIStore } from "@/lib/store";
 import { ThemeToggle } from "../ui/ThemeToggle";
@@ -188,7 +189,7 @@ export function MapSidebar() {
             <div className="flex items-center gap-2">
               {/* eslint-disable-next-line @next/next/no-img-element */}
               <img src="/logo-icon.svg" alt="" className="w-6 h-6" />
-              <span className="text-sm font-semibold">Namma Lakes</span>
+              <span className="text-sm font-semibold">{BRAND}</span>
             </div>
             <div className="flex items-center gap-3 text-xs">
               <span className="font-bold text-white">{withData.length}</span>
@@ -266,7 +267,7 @@ export function MapSidebar() {
               <img src="/logo-icon.svg" alt="" className="w-8 h-8" />
               <div>
                 <h1 className="text-base font-bold tracking-tight leading-tight">
-                  Namma Lakes
+                  {BRAND}
                 </h1>
                 <p className="text-[9px] text-white/30">
                   Satellite-powered civic data

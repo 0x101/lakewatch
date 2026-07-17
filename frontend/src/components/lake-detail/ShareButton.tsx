@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useCallback } from "react";
+import { BRAND } from "@/lib/city.config";
 
 interface ShareButtonProps {
   lakeName: string;
@@ -33,7 +34,7 @@ export default function ShareButton({ lakeName }: ShareButtonProps) {
   const handleShare = useCallback(async () => {
     const shareData = {
       title: lakeName,
-      text: `Check out ${lakeName} on Namma Lakes`,
+      text: `Check out ${lakeName} on ${BRAND}`,
       url: window.location.href,
     };
 

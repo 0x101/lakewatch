@@ -1,4 +1,5 @@
 import { ImageResponse } from "next/og";
+import { BRAND } from "@/lib/city.config";
 
 export const alt = "Lake health card";
 export const size = { width: 1200, height: 630 };
@@ -52,7 +53,7 @@ function FallbackCard() {
       }}
     >
       <div style={{ fontSize: 56, fontWeight: 700, display: "flex" }}>
-        Namma Lakes
+        {BRAND}
       </div>
       <div
         style={{
@@ -264,7 +265,7 @@ export default async function Image({
           }}
         >
           <div style={{ fontSize: 20, color: "#666", display: "flex" }}>
-            Namma Lakes
+            {BRAND}
           </div>
           <div style={{ fontSize: 16, color: "#666", display: "flex" }}>
             Satellite-powered lake health tracking

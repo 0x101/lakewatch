@@ -1,10 +1,10 @@
 import type { Metadata } from "next";
 import { AboutHeader } from "./AboutHeader";
+import { ATTRIBUTION, BRAND, CITY } from "@/lib/city.config";
 
 export const metadata: Metadata = {
-  title: "About - Namma Lakes",
-  description:
-    "How we use satellite data to track the health of Bangalore's lakes. Methodology, data sources, and limitations.",
+  title: `About - ${BRAND}`,
+  description: `How ${BRAND} uses satellite data to track the health of ${CITY}'s lakes. Methodology, data sources, and limitations.`,
 };
 
 export default function AboutPage() {
@@ -14,17 +14,53 @@ export default function AboutPage() {
         {/* Intro */}
         <AboutHeader />
         <p className="text-foreground/80 leading-relaxed mb-4">
-          We point satellites at Bangalore&apos;s lakes and track what&apos;s
-          happening. Every 5 days, the European Space Agency&apos;s Sentinel-2
-          satellites photograph the city at 10-meter resolution. We turn those
-          pixels into numbers that tell you which lakes are thriving and which
-          ones need help.
+          {BRAND} points satellites at {CITY}&apos;s lakes and tracks
+          what&apos;s happening to them. Every few days, the European Space
+          Agency&apos;s Sentinel-2 satellites photograph the city at 10-meter
+          resolution. We turn those pixels into numbers that tell you which
+          lakes are thriving and which ones need help.
         </p>
         <p className="text-foreground/80 leading-relaxed mb-4">
           Think of it as a fitness tracker, but for lakes. Except the
           &ldquo;wearable&rdquo; is a satellite orbiting 786 km above your
           head, and instead of counting steps it&apos;s measuring how much
           water is left and whether it&apos;s turning green.
+        </p>
+
+        {/* What we measure */}
+        <h2 className="text-2xl font-bold text-white mb-4 mt-12">
+          What the site measures
+        </h2>
+        <p className="text-foreground/80 leading-relaxed mb-4">
+          Everything here is derived from{" "}
+          <strong className="text-white">Copernicus Sentinel-2 L2A</strong>{" "}
+          imagery, processed on{" "}
+          <strong className="text-white">Google Earth Engine</strong>. The
+          satellites revisit the same spot roughly every{" "}
+          <strong className="text-white">5 days</strong>, and each pixel
+          covers <strong className="text-white">10 meters</strong> on the
+          ground. For every tracked lake we compute three core metrics:
+        </p>
+        <ul className="list-disc list-inside text-foreground/70 space-y-2 mb-4">
+          <li>
+            <strong className="text-white">Water area</strong> — how much open
+            water the lake surface holds right now, and how that changes over
+            months and years.
+          </li>
+          <li>
+            <strong className="text-white">Algae fraction</strong> — how much
+            of the water surface reads as algae, a proxy for eutrophication.
+          </li>
+          <li>
+            <strong className="text-white">Health score</strong> — a single
+            0-100 number combining area stability, algae, water presence, and
+            long-term trend.
+          </li>
+        </ul>
+        <p className="text-foreground/80 leading-relaxed mb-4">
+          Each lake also gets a <strong className="text-white">timelapse</strong>{" "}
+          — an animated strip of satellite frames so you can watch it shrink,
+          refill, or bloom over the years with your own eyes.
         </p>
 
         {/* How it works */}
@@ -105,8 +141,7 @@ export default function AboutPage() {
         </p>
         <p className="text-foreground/80 leading-relaxed mb-4">
           High algae = eutrophication, usually from sewage or fertilizer runoff
-          feeding the lake nutrients it can&apos;t handle. Bellandur Lake famously
-          froths and catches fire partly because of this.
+          feeding the lake nutrients it can&apos;t handle.
         </p>
 
         <h3 className="text-xl font-semibold text-white mb-3 mt-8">
@@ -156,17 +191,17 @@ export default function AboutPage() {
         </p>
 
         <h3 className="text-xl font-semibold text-white mb-3 mt-8">
-          Time intervals
+          Time intervals &amp; timelapses
         </h3>
         <p className="text-foreground/80 leading-relaxed mb-4">
           We offer three ways to view the data:{" "}
           <strong className="text-white">raw</strong> (every usable satellite
           pass),{" "}
           <strong className="text-white">monthly</strong> (best observation per
-          month), and{" "}
-          <strong className="text-white">yearly</strong> (annual averages). Any
-          image with more than 30% cloud cover over the lake area gets
-          rejected -- no point in measuring clouds.
+          month), and <strong className="text-white">yearly</strong> (annual
+          averages). Timelapse frames are rendered from the least cloudy image
+          in each period, so the animation stays watchable even through cloudy
+          seasons.
         </p>
 
         {/* Data Pipeline */}
@@ -218,76 +253,22 @@ export default function AboutPage() {
         <h2 className="text-2xl font-bold text-white mb-4 mt-12">
           Data sources
         </h2>
-
-        <h3 className="text-xl font-semibold text-white mb-3 mt-6">
-          Satellite imagery
-        </h3>
         <p className="text-foreground/80 leading-relaxed mb-4">
-          Copernicus Sentinel-2 L2A data, provided free of charge by the
+          Copernicus Sentinel-2 L2A data is provided free of charge by the
           European Space Agency (ESA) via Google Earth Engine. This is the
           surface reflectance product with atmospheric correction already
           applied -- so we&apos;re working with clean, calibrated data from
-          2015 to present.
+          2015 to present. Lake boundary polygons are loaded by the site
+          operator when setting up a city.
         </p>
 
-        <h3 className="text-xl font-semibold text-white mb-3 mt-6">
-          Lake boundaries
-        </h3>
-        <p className="text-foreground/80 leading-relaxed mb-4">
-          Lake boundary polygons from CSEI-ATREE&apos;s Mapping
-          Bangalore&apos;s Lakes project. Supplementary boundary data from
-          OpenCity.in.
-        </p>
-
-        {/* Attribution callout */}
+        {/* Attribution callout — rendered from city.config.json */}
         <div className="border-l-4 border-blue-500 pl-4 py-2 bg-white/5 rounded-r-lg my-6 space-y-2">
-          <p className="text-foreground/80 leading-relaxed">
-            Contains modified Copernicus Sentinel data [2015-present]
-          </p>
-          <p className="text-foreground/80 leading-relaxed">
-            Lake boundary data:{" "}
-            <a
-              href="https://data.opencity.in/dataset/map-lakes-streams-bengaluru-urban-within-bbmp-area"
-              className="text-blue-400 hover:text-blue-300 underline"
-              target="_blank"
-              rel="noopener noreferrer"
-            >
-              CSEI-ATREE via OpenCity.in
-            </a>
-          </p>
-          <p className="text-foreground/80 leading-relaxed">
-            EMPRI inventory:{" "}
-            <a
-              href="https://data.opencity.in/dataset/inventory-of-lakes-bengaluru-metropolitan-area"
-              className="text-blue-400 hover:text-blue-300 underline"
-              target="_blank"
-              rel="noopener noreferrer"
-            >
-              EMPRI/KLCDA via OpenCity.in
-            </a>
-          </p>
-          <p className="text-foreground/80 leading-relaxed">
-            Water quality reports:{" "}
-            <a
-              href="https://data.opencity.in/dataset/bengaluru-lake-monthly-water-quality-reports"
-              className="text-blue-400 hover:text-blue-300 underline"
-              target="_blank"
-              rel="noopener noreferrer"
-            >
-              KSPCB via OpenCity.in
-            </a>
-          </p>
-          <p className="text-foreground/80 leading-relaxed">
-            Storm drain network:{" "}
-            <a
-              href="https://data.opencity.in/dataset/bengaluru-stormwater-drains-maps"
-              className="text-blue-400 hover:text-blue-300 underline"
-              target="_blank"
-              rel="noopener noreferrer"
-            >
-              BBMP SWD Maps via OpenCity.in
-            </a>
-          </p>
+          {ATTRIBUTION.map((line) => (
+            <p key={line} className="text-foreground/80 leading-relaxed">
+              {line}
+            </p>
+          ))}
         </div>
 
         {/* Limitations */}
@@ -306,9 +287,8 @@ export default function AboutPage() {
             pixels to work with.
           </li>
           <li>
-            <strong className="text-white">Cloud cover.</strong> Monsoon season
-            (June-September) means sparse usable images. Bangalore gets clouds.
-            We can&apos;t change the weather.
+            <strong className="text-white">Cloud cover.</strong> Cloudy seasons
+            mean sparse usable images. We can&apos;t change the weather.
           </li>
           <li>
             <strong className="text-white">Proxy measurements.</strong> NDWI and
@@ -318,87 +298,41 @@ export default function AboutPage() {
           </li>
           <li>
             <strong className="text-white">Not encroachment detection.</strong>{" "}
-            This project tracks lake health -- water area and algae levels. We
-            do not attempt to identify encroachment. That&apos;s a different
-            (and politically sensitive) question.
+            This project tracks lake health -- water area and algae levels. It
+            does not attempt to identify encroachment.
           </li>
           <li>
             <strong className="text-white">Update frequency.</strong> New
-            satellite images every 5 days, weather permitting. This is not
+            satellite images every ~5 days, weather permitting. This is not
             real-time monitoring.
           </li>
         </ul>
 
-        {/* Ground Truth Data Sources (v2.0) */}
+        {/* Run it for your city */}
         <h2 className="text-2xl font-bold text-white mb-4 mt-12">
-          Ground-truth data
+          Run this for your city
         </h2>
         <p className="text-foreground/80 leading-relaxed mb-4">
-          Satellites are powerful, but they&apos;re not the whole story. We
-          cross-reference our satellite observations with field data from
-          two government sources:
+          {BRAND} is built on{" "}
+          <strong className="text-white">LakeWatch</strong>, an open-source
+          template for tracking any city&apos;s lakes from space. The pipeline,
+          API, and this frontend are all generic: you provide a config file
+          with your city&apos;s name, map center, and attribution, plus a
+          GeoJSON of lake boundaries, and the same site you&apos;re looking at
+          runs for your city.
         </p>
-
-        <h3 className="text-xl font-semibold text-white mb-3 mt-6">
-          EMPRI Pollution Inventory (2018)
-        </h3>
         <p className="text-foreground/80 leading-relaxed mb-4">
-          The Environmental Management &amp; Policy Research Institute conducted
-          a field survey of Bangalore&apos;s lakes in 2018 — visiting each
-          lake to document pollution sources, sewage inflow, biota (what&apos;s
-          growing in the water), encroachment status, and which government
-          agency is responsible. This is the &ldquo;what people on the ground
-          actually saw&rdquo; dataset. When the satellite says a lake has high
-          algae and EMPRI says &ldquo;untreated sewage inflow observed&rdquo;,
-          the data tells a consistent story.
+          The satellite data is free. The codebase is open source. If you want
+          this for your city, everything you need is in the repo:{" "}
+          <a
+            href="https://github.com/0x101/lakewatch"
+            className="text-blue-400 hover:text-blue-300 underline"
+            target="_blank"
+            rel="noopener noreferrer"
+          >
+            github.com/0x101/lakewatch
+          </a>
         </p>
-
-        <h3 className="text-xl font-semibold text-white mb-3 mt-6">
-          KSPCB Water Quality (2019-2025)
-        </h3>
-        <p className="text-foreground/80 leading-relaxed mb-4">
-          The Karnataka State Pollution Control Board runs quarterly lab tests
-          on lake water: BOD (Biochemical Oxygen Demand), COD (Chemical Oxygen
-          Demand), dissolved oxygen, pH, and total coliform bacteria. Each
-          lake gets a classification from A (drinking water) to E (below
-          irrigation quality). High BOD = lots of organic waste decomposing =
-          the lake is struggling. Low dissolved oxygen = fish can&apos;t
-          breathe. When our satellite data shows high algae and KSPCB shows
-          Class E with high BOD, you know it&apos;s not a false alarm.
-        </p>
-
-        <h3 className="text-xl font-semibold text-white mb-3 mt-6">
-          Stream network (rajakaluves)
-        </h3>
-        <p className="text-foreground/80 leading-relaxed mb-4">
-          Bangalore&apos;s lakes are connected by a network of storm drains
-          called rajakaluves. When one lake is polluted, its overflow carries
-          downstream — so Bellandur&apos;s mess flows into Varthur. We map
-          these connections so you can see which lakes feed into which, and
-          understand why pollution cascades through the city.
-        </p>
-
-        {/* Attribution callout */}
-        <div className="border-l-4 border-blue-500 pl-4 py-2 bg-white/5 rounded-r-lg my-6">
-          <p className="text-foreground/80 leading-relaxed mb-2">
-            Contains modified Copernicus Sentinel data [2015-present]
-          </p>
-          <p className="text-foreground/80 leading-relaxed mb-2">
-            Lake boundary data: Centre for Social and Environmental Innovation,
-            ATREE (CSEI-ATREE)
-          </p>
-          <p className="text-foreground/80 leading-relaxed mb-2">
-            EMPRI field survey data: Environmental Management &amp; Policy Research
-            Institute, Govt. of Karnataka (2018)
-          </p>
-          <p className="text-foreground/80 leading-relaxed mb-2">
-            KSPCB lab data: Karnataka State Pollution Control Board quarterly
-            monitoring reports (2019-2025)
-          </p>
-          <p className="text-foreground/80 leading-relaxed">
-            Supplementary boundary and enrichment data: OpenCity.in
-          </p>
-        </div>
 
         {/* Credits */}
         <h2 className="text-2xl font-bold text-white mb-4 mt-12">
@@ -421,26 +355,6 @@ export default function AboutPage() {
               providing the compute infrastructure to process petabytes of satellite
               imagery without downloading a single file. The free tier for non-commercial
               use is genuinely transformative.
-            </li>
-            <li>
-              <strong className="text-white">CSEI-ATREE</strong> — the Centre for
-              Social and Environmental Innovation at the Ashoka Trust for Research
-              in Ecology and the Environment. Their meticulous mapping of Bangalore&apos;s
-              lake boundaries is the foundation of everything here.
-            </li>
-            <li>
-              <strong className="text-white">EMPRI</strong> — the Environmental
-              Management &amp; Policy Research Institute for their 2018 field survey
-              documenting the ground truth at each lake.
-            </li>
-            <li>
-              <strong className="text-white">KSPCB</strong> — the Karnataka State
-              Pollution Control Board for publishing water quality lab data that lets
-              us cross-validate satellite observations.
-            </li>
-            <li>
-              <strong className="text-white">OpenCity.in</strong> — for aggregating
-              and making Bangalore&apos;s civic data accessible and machine-readable.
             </li>
           </ul>
         </div>
@@ -472,15 +386,15 @@ export default function AboutPage() {
         </div>
 
         <p className="text-foreground/80 leading-relaxed mb-4">
-          The entire codebase is open source. The satellite data is free. The
-          ground-truth data is public. If you want to build something similar
-          for another city, everything you need is here.
+          The entire codebase is open source. The satellite data is free. If
+          you want to build something similar for another city, everything you
+          need is here.
         </p>
 
         <p className="text-foreground/60 leading-relaxed text-sm mt-8">
           Have questions, spotted a bug, or want to help?{" "}
           <a
-            href="https://github.com"
+            href="https://github.com/0x101/lakewatch"
             className="text-blue-400 hover:text-blue-300 underline"
             target="_blank"
             rel="noopener noreferrer"
@@ -491,15 +405,12 @@ export default function AboutPage() {
 
         <div className="mt-12 pt-6 border-t border-white/10 text-xs text-foreground/30 space-y-1">
           <p>
-            Namma Lakes is an independent civic project. It is not
-            affiliated with or endorsed by any government agency. All data is
-            derived from publicly available sources.
+            {BRAND} is an independent civic project. It is not affiliated with
+            or endorsed by any government agency. All data is derived from
+            publicly available sources.
           </p>
           <p>
-            Sentinel-2 data: &copy; ESA, Copernicus Sentinel data. Lake
-            boundaries: &copy; CSEI-ATREE, CC BY-SA 4.0. EMPRI data: &copy;
-            EMPRI, Govt. of Karnataka. KSPCB data: &copy; KSPCB, Govt. of
-            Karnataka.
+            Sentinel-2 data: &copy; ESA, Copernicus Sentinel data.
           </p>
         </div>
       </article>

@@ -18,9 +18,9 @@ import DownloadButtons from "@/components/lake-detail/DownloadButtons";
 import ShareButton from "@/components/lake-detail/ShareButton";
 import { ThemeToggle } from "@/components/ui/ThemeToggle";
 import { getDisplayName, getAltNames, getLakeTier, getLakeZone } from "@/lib/lake-enrichment";
+import { ATTRIBUTION, LOCAL_LANGUAGE } from "@/lib/city.config";
 import { formatRelatableArea } from "@/lib/relatable";
 import { perimeterMeters, formatWalkLap } from "@/lib/geo";
-import type { LakeDetail } from "@/lib/types";
 
 // ---------------------------------------------------------------------------
 // Constants
@@ -78,12 +78,6 @@ function healthLabelColor(score: number | null): string {
   if (score >= 60) return "text-green-400";
   if (score >= 30) return "text-yellow-400";
   return "text-red-400";
-}
-
-function formatDate(dateStr: string | null): string {
-  if (!dateStr) return "";
-  const d = new Date(dateStr);
-  return d.toLocaleDateString("en-US", { month: "short", year: "numeric" });
 }
 
 // ---------------------------------------------------------------------------
@@ -298,8 +292,11 @@ export default function LakeDetailClient({ lakeId }: LakeDetailClientProps) {
             </span>
           )}
           {lake.health_score !== null && <HealthBadge score={lake.health_score} />}
-          {lake.name_kannada && (
-            <span className="text-xs text-foreground/40">{lake.name_kannada}</span>
+          {lake.name_local && (
+            <span className="text-xs text-foreground/40">
+              {LOCAL_LANGUAGE ? `${LOCAL_LANGUAGE}: ` : ""}
+              {lake.name_local}
+            </span>
           )}
         </div>
       </div>
@@ -566,15 +563,9 @@ export default function LakeDetailClient({ lakeId }: LakeDetailClientProps) {
 
           {/* Data provenance */}
           <div className="border-t border-white/10 pt-4 text-xs text-foreground/30 space-y-1">
-            <p>
-              <strong>Satellite data:</strong> Copernicus Sentinel-2 L2A via Google Earth Engine. 10m resolution, ~5-day revisit.
-            </p>
-            <p>
-              <strong>Lake boundary:</strong> CSEI-ATREE, Centre for Social and Environmental Innovation. CC BY-SA 4.0.
-            </p>
-            <p>
-              <strong>Ground truth:</strong> EMPRI field survey (2018) + KSPCB lab measurements (2019-2025).
-            </p>
+            {ATTRIBUTION.map((line) => (
+              <p key={line}>{line}</p>
+            ))}
           </div>
         </div>
       )}

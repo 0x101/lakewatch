@@ -9,7 +9,7 @@ import {
   fetchMovers,
   fetchPulse,
 } from "@/lib/api";
-// Cross-reference is a Bangalore city extension; sourced from api-ext so this
+// Cross-reference is a city extension; sourced from api-ext so this
 // shared hook degrades cleanly when the public api-ext stub returns no entries.
 import { fetchCrossReference } from "@/lib/api-ext";
 

@@ -74,7 +74,7 @@ export interface LakeDetail {
   custodian: string | null;
   citizen_group: string | null;
   area_hectares: number | null;
-  name_kannada: string | null;
+  name_local: string | null;
   latest_observation_date: string | null;
   peak_algae_month: number | null;
   seasonal_amplitude: number | null;
@@ -114,37 +114,6 @@ export interface EMPRIRecord {
   water_spread_area_ha: number | null;
   catchment_area_ha: number | null;
   rejuvenation_status: string | null;
-}
-
-/** KSPCB water quality measurement. */
-export interface KSPCBMeasurement {
-  measurement_date: string;
-  bod_mg_l: number | null;
-  cod_mg_l: number | null;
-  dissolved_oxygen_mg_l: number | null;
-  ph: number | null;
-  total_coliform: number | null;
-  classification: string | null;
-  source_report: string | null;
-}
-
-export interface KSPCBTimeseriesResponse {
-  lake_id: string;
-  count: number;
-  measurements: KSPCBMeasurement[];
-}
-
-/** KSPCB city-wide averages. */
-export interface KSPCBCityAveragePoint {
-  measurement_date: string;
-  avg_bod_mg_l: number | null;
-  avg_cod_mg_l: number | null;
-  avg_dissolved_oxygen_mg_l: number | null;
-}
-
-export interface KSPCBCityAveragesResponse {
-  count: number;
-  averages: KSPCBCityAveragePoint[];
 }
 
 /** Stream network connection. */
@@ -201,10 +170,6 @@ export interface LakeStatsTableResponse {
 export interface CrossReferenceEntry {
   month: string;
   satellite_algae_fraction: number | null;
-  kspcb_bod: number | null;
-  kspcb_cod: number | null;
-  kspcb_do: number | null;
-  kspcb_classification: string | null;
   agreement: string | null;
 }
 
@@ -250,7 +215,6 @@ export interface CitySummary {
   struggling_count: number;
   healthy_count: number;
   avg_algae_fraction: number;
-  most_common_kspcb_class: string | null;
   lakes_improving: number;
   lakes_declining: number;
 }
@@ -261,7 +225,6 @@ export interface YearlyTrendPoint {
   total_water_area: number | null;
   avg_algae: number | null;
   observation_count: number;
-  kspcb_class_distribution: Record<string, number>;
 }
 
 export interface TrendsResponse {

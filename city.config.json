@@ -5,7 +5,7 @@
   "domain": "nammalakes.com",
   "center": { "lng": 77.59, "lat": 12.97 },
   "zoom": 11,
-  "language_label_field": "name_kannada",
+  "local_language": "Kannada",
   "attribution": [
     "Copernicus Sentinel-2 L2A via Google Earth Engine. 10m resolution, ~5-day revisit.",
     "CSEI-ATREE, Centre for Social and Environmental Innovation. CC BY-SA 4.0."

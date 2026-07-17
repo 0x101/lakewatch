@@ -12,6 +12,8 @@ function usePreloadFrames(frameUrls: string[]) {
   const [loaded, setLoaded] = useState(false);
   const [progress, setProgress] = useState(0);
 
+  /* eslint-disable react-hooks/set-state-in-effect --
+     preload state must reset synchronously when the frame list changes */
   useEffect(() => {
     if (frameUrls.length === 0) {
       setLoaded(true);
@@ -44,6 +46,7 @@ function usePreloadFrames(frameUrls: string[]) {
       cancelled = true;
     };
   }, [frameUrls]);
+  /* eslint-enable react-hooks/set-state-in-effect */
 
   return { loaded, progress };
 }

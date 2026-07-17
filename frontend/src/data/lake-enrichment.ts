@@ -24,8 +24,8 @@
  *
  * And edit ZONES below to your city's regions (used by the map zone filter).
  *
- * Reference implementation: Bangalore Lake Watch (nammalakes.com) ships a
- * full enrichment map of ~170 lakes with local names, tiers, and zones.
+ * Reference implementation: a private downstream fork ships a full
+ * enrichment map of ~170 lakes with local names, tiers, and zones.
  */
 
 export interface LakeEnrichment {

@@ -11,7 +11,6 @@ import {
   CartesianGrid,
   Tooltip,
   ResponsiveContainer,
-  Legend,
 } from "recharts";
 import {
   useCitySummary,
@@ -20,19 +19,13 @@ import {
 } from "@/hooks/useDashboard";
 import { useLakeStatsTable, useCustodianStats } from "@/hooks/useInsights";
 import { ThemeToggle } from "@/components/ui/ThemeToggle";
+import { OverviewExtensions } from "@/components/extensions";
+import { ATTRIBUTION, CITY } from "@/lib/city.config";
 
 const MONTH_NAMES = [
   "", "Jan", "Feb", "Mar", "Apr", "May", "Jun",
   "Jul", "Aug", "Sep", "Oct", "Nov", "Dec",
 ];
-
-const KSPCB_COLORS: Record<string, string> = {
-  A: "#22c55e",
-  B: "#84cc16",
-  C: "#eab308",
-  D: "#f97316",
-  E: "#ef4444",
-};
 
 function Skeleton({ className = "" }: { className?: string }) {
   return <div className={`bg-white/5 rounded-xl animate-pulse ${className}`} />;
@@ -155,7 +148,7 @@ function MetricCards() {
   );
 }
 
-/* ── Trends + KSPCB Charts ─────────────────────────────── */
+/* ── Trends Chart + City Extensions ────────────────────── */
 
 function TrendsCharts() {
   const { data, isLoading } = useTrends();
@@ -170,15 +163,6 @@ function TrendsCharts() {
   }
 
   const years = data.years;
-
-  const allClasses = Array.from(
-    new Set(years.flatMap((y) => Object.keys(y.kspcb_class_distribution ?? {})))
-  ).sort();
-
-  const kspcbData = years.map((y) => ({
-    year: y.year,
-    ...(y.kspcb_class_distribution ?? {}),
-  }));
 
   return (
     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -222,46 +206,8 @@ function TrendsCharts() {
         </ResponsiveContainer>
       </div>
 
-      {/* KSPCB class distribution stacked bar */}
-      <div className="bg-white/5 border border-white/10 rounded-xl p-4">
-        <h3 className="text-xs font-semibold text-foreground/50 uppercase tracking-wider mb-4">
-          KSPCB Classification by Year
-        </h3>
-        <ResponsiveContainer width="100%" height={260}>
-          <BarChart data={kspcbData}>
-            <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.05)" />
-            <XAxis
-              dataKey="year"
-              tick={{ fill: "rgba(255,255,255,0.4)", fontSize: 12 }}
-              axisLine={{ stroke: "rgba(255,255,255,0.1)" }}
-            />
-            <YAxis
-              tick={{ fill: "rgba(255,255,255,0.4)", fontSize: 12 }}
-              axisLine={{ stroke: "rgba(255,255,255,0.1)" }}
-            />
-            <Tooltip
-              contentStyle={{
-                backgroundColor: "rgba(17,24,39,0.95)",
-                border: "1px solid rgba(255,255,255,0.1)",
-                borderRadius: 8,
-                color: "#fff",
-              }}
-            />
-            <Legend
-              wrapperStyle={{ fontSize: 11, color: "rgba(255,255,255,0.5)" }}
-            />
-            {allClasses.map((cls) => (
-              <Bar
-                key={cls}
-                dataKey={cls}
-                stackId="kspcb"
-                fill={KSPCB_COLORS[cls] ?? "#6b7280"}
-                name={`Class ${cls}`}
-              />
-            ))}
-          </BarChart>
-        </ResponsiveContainer>
-      </div>
+      {/* City-specific extension slot (no-op in the public build). */}
+      <OverviewExtensions />
     </div>
   );
 }
@@ -506,6 +452,29 @@ function HealthDistribution() {
 /* ── Key Findings ──────────────────────────────────────── */
 
 function KeyFindings() {
+  const { data: summary, isLoading } = useCitySummary();
+  const { data: statsData } = useLakeStatsTable();
+
+  if (isLoading || !summary) return <Skeleton className="h-40" />;
+
+  const shrinkingCount = statsData
+    ? statsData.stats.filter(
+        (s) => s.area_change_5yr_pct !== null && s.area_change_5yr_pct < -10
+      ).length
+    : 0;
+  const highAlgaeCount = statsData
+    ? statsData.stats.filter(
+        (s) => s.mean_algae_fraction !== null && s.mean_algae_fraction > 0.15
+      ).length
+    : 0;
+
+  const trendBalance =
+    summary.lakes_improving === summary.lakes_declining
+      ? "as many lakes are improving as declining"
+      : summary.lakes_improving > summary.lakes_declining
+        ? "more lakes are improving than declining"
+        : "more lakes are declining than improving";
+
   return (
     <div className="bg-white/5 border border-white/10 rounded-xl p-4">
       <h3 className="text-xs font-semibold text-foreground/50 uppercase tracking-wider mb-3">
@@ -513,24 +482,32 @@ function KeyFindings() {
       </h3>
       <ul className="space-y-2 text-sm text-foreground/70 list-disc list-inside">
         <li>
-          <strong className="text-white">Bellandur and Varthur</strong> are
-          connected via rajakaluve. Both score below 25/100. Overflow from
-          Bellandur feeds directly into Varthur.
+          <strong className="text-white">
+            {summary.healthy_count} of {summary.total_lakes} tracked lakes are
+            healthy
+          </strong>{" "}
+          (score 60+). {summary.distressed_count} are distressed (below 30).
         </li>
         <li>
-          <strong className="text-white">Actively managed lakes score higher.</strong>{" "}
-          Lakes with dedicated custodians (Sankey, Lalbagh, Ulsoor) consistently
-          score 65+ on the health index.
+          <strong className="text-white">
+            {summary.lakes_improving} improving vs {summary.lakes_declining}{" "}
+            declining.
+          </strong>{" "}
+          On the latest year-over-year readings, {trendBalance}.
         </li>
         <li>
-          <strong className="text-white">Algae peaks lag behind monsoon.</strong>{" "}
-          Water area peaks Oct-Feb (post-monsoon fill), but algae peaks Aug-Sep
-          when nutrient-rich runoff enters the lake.
+          <strong className="text-white">
+            {shrinkingCount} lakes lost &gt;10% of their water surface in 5
+            years.
+          </strong>{" "}
+          Long-term shrinkage, measured from satellite water area.
         </li>
         <li>
-          <strong className="text-white">Lake size does not correlate with health.</strong>{" "}
-          Some of the largest lakes are the most distressed. Smaller lakes with
-          active management outperform on every metric.
+          <strong className="text-white">
+            {highAlgaeCount} lakes average &gt;15% algae cover.
+          </strong>{" "}
+          Elevated algae usually tracks nutrient-rich inflow (sewage,
+          fertilizer runoff).
         </li>
       </ul>
     </div>
@@ -555,7 +532,7 @@ export default function OverviewClient() {
           <ThemeToggle />
         </div>
         <p className="text-foreground/50 mt-1">
-          Aggregate metrics across all tracked lakes in Bangalore.
+          Aggregate metrics across all tracked lakes in {CITY}.
         </p>
       </div>
 
@@ -568,7 +545,7 @@ export default function OverviewClient() {
       {/* Health Distribution */}
       <HealthDistribution />
 
-      {/* Trends + KSPCB */}
+      {/* Trends + city extensions */}
       <TrendsCharts />
 
       {/* Seasonal + Algae Peaks */}
@@ -582,19 +559,9 @@ export default function OverviewClient() {
 
       {/* Footer: Data provenance */}
       <div className="border-t border-white/10 pt-4 text-xs text-foreground/30 space-y-1">
-        <p>
-          <strong>Satellite data:</strong> Copernicus Sentinel-2 L2A via Google
-          Earth Engine. 10m resolution, ~5-day revisit. Cloud-masked using SCL
-          band (&gt;30% rejected).
-        </p>
-        <p>
-          <strong>KSPCB data:</strong> Karnataka State Pollution Control Board
-          lab measurements. Frequency varies by lake.
-        </p>
-        <p>
-          <strong>Lake boundaries:</strong> CSEI-ATREE, Centre for Social and
-          Environmental Innovation. CC BY-SA 4.0.
-        </p>
+        {ATTRIBUTION.map((line) => (
+          <p key={line}>{line}</p>
+        ))}
       </div>
     </div>
   );

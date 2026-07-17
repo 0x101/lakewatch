@@ -18,22 +18,12 @@
 import type {
   CrossReferenceResponse,
   EMPRIRecord,
-  KSPCBCityAveragesResponse,
-  KSPCBTimeseriesResponse,
   StreamConnectionsResponse,
 } from "./types";
 
 export function fetchEMPRI(lakeId: string): Promise<EMPRIRecord | null> {
   void lakeId;
   return Promise.resolve(null);
-}
-
-export function fetchKSPCB(lakeId: string): Promise<KSPCBTimeseriesResponse> {
-  return Promise.resolve({ lake_id: lakeId, count: 0, measurements: [] });
-}
-
-export function fetchKSPCBCityAverages(): Promise<KSPCBCityAveragesResponse> {
-  return Promise.resolve({ count: 0, averages: [] });
 }
 
 export function fetchStreamConnections(

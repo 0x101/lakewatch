@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import LakeDetailClient from "./LakeDetailClient";
+import { BRAND } from "@/lib/city.config";
 
 type Props = {
   params: Promise<{ id: string }>;
@@ -17,7 +18,7 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
     );
 
     if (!res.ok) {
-      return { title: `Lake - Namma Lakes` };
+      return { title: `Lake - ${BRAND}` };
     }
 
     const lake = await res.json();
@@ -40,15 +41,15 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
       .join(" ");
 
     return {
-      title: `${lake.name} - Namma Lakes`,
+      title: `${lake.name} - ${BRAND}`,
       description,
       openGraph: {
-        title: `${lake.name} - Namma Lakes`,
+        title: `${lake.name} - ${BRAND}`,
         description,
       },
     };
   } catch {
-    return { title: `Lake - Namma Lakes` };
+    return { title: `Lake - ${BRAND}` };
   }
 }
 

@@ -6,9 +6,10 @@ import { ThemeToggle } from "@/components/ui/ThemeToggle";
 import CopyButton from "@/components/pulse/CopyButton";
 import { formatSignedHa, formatRelatableArea } from "@/lib/relatable";
 import { getDisplayName } from "@/lib/lake-enrichment";
+import { ATTRIBUTION, CITY, DOMAIN } from "@/lib/city.config";
 import type { PulseLakeEntry } from "@/lib/types";
 
-const SITE = "nammalakes.com";
+const SITE = DOMAIN;
 
 function Skeleton({ className = "" }: { className?: string }) {
   return <div className={`bg-white/5 rounded-xl animate-pulse ${className}`} />;
@@ -181,7 +182,7 @@ export default function PulseClient() {
         </Link>
         <div className="flex items-center justify-between">
           <h1 className="text-3xl font-bold text-white">
-            What changed at Bangalore&apos;s lakes
+            What changed at {CITY}&apos;s lakes
           </h1>
           <ThemeToggle />
         </div>
@@ -212,7 +213,7 @@ export default function PulseClient() {
               <div className="pt-1">
                 <CopyButton
                   label="Share this"
-                  text={`Bangalore's lakes are ${data.city.net_change_m2 >= 0 ? "up" : "down"} ${formatSignedHa(data.city.net_change_m2)} of water vs a year ago${
+                  text={`${CITY}'s lakes are ${data.city.net_change_m2 >= 0 ? "up" : "down"} ${formatSignedHa(data.city.net_change_m2)} of water vs a year ago${
                     formatRelatableArea(data.city.net_change_m2)
                       ? ` — about ${formatRelatableArea(data.city.net_change_m2)!.replace(/^≈\s*/, "")}`
                       : ""
@@ -274,11 +275,10 @@ export default function PulseClient() {
 
       {/* Footer */}
       <div className="border-t border-white/10 pt-4 text-xs text-foreground/30 space-y-1">
-        <p>
-          Estimates from Copernicus Sentinel-2 imagery via Google Earth Engine,
-          10m resolution, ~5-day revisit. Satellite-derived, not ground truth.
-        </p>
-        <p>Lake boundaries: CSEI-ATREE. CC BY-SA 4.0.</p>
+        {ATTRIBUTION.map((line) => (
+          <p key={line}>{line}</p>
+        ))}
+        <p>Satellite-derived estimates, not ground truth.</p>
       </div>
     </div>
   );

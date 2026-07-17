@@ -12,7 +12,7 @@ import {
 } from "react-map-gl/mapbox";
 import { useTheme } from "next-themes";
 import { useLakesGeoJSON } from "@/hooks/useLakes";
-// Stream overlay is a Bangalore city extension (via useStreams -> api-ext).
+// Stream overlay is a city extension (via useStreams -> api-ext).
 // In the public build the api-ext stub returns no streams, so the guarded
 // {streamsGeojson && (...)} layer below simply renders nothing — no overlay.
 import { useStreamsGeoJSON } from "@/hooks/useStreams";
