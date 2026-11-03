@@ -3,7 +3,7 @@
 from datetime import timedelta
 
 from sqlalchemy import Float as SAFloat
-from sqlalchemy import and_, extract, func, select
+from sqlalchemy import extract, func, select
 from sqlalchemy.orm import Session
 
 from pipeline.db.models import (
@@ -186,19 +186,19 @@ def get_city_summary(db: Session) -> dict:
         "total_lakes": row.total_lakes or 0,
         "total_observations": row.total_observations or 0,
         "avg_health_score": (
-            round(row.avg_health_score, 1) if row.avg_health_score else None
+            round(row.avg_health_score, 1) if row.avg_health_score is not None else None
         ),
         "median_health_score": (
-            round(row.median_health_score, 1) if row.median_health_score else None
+            round(row.median_health_score, 1) if row.median_health_score is not None else None
         ),
         "total_water_area_ha": (
-            round(row.total_water_area_ha, 2) if row.total_water_area_ha else None
+            round(row.total_water_area_ha, 2) if row.total_water_area_ha is not None else None
         ),
         "distressed_count": row.distressed_count,
         "struggling_count": row.struggling_count,
         "healthy_count": row.healthy_count,
         "avg_algae_fraction": (
-            round(row.avg_algae_fraction, 4) if row.avg_algae_fraction else None
+            round(row.avg_algae_fraction, 4) if row.avg_algae_fraction is not None else None
         ),
         "lakes_improving": row.lakes_improving,
         "lakes_declining": row.lakes_declining,
@@ -227,14 +227,14 @@ def get_yearly_trends(db: Session) -> list[dict]:
         obs = obs_rows[yr]
         results.append({
             "year": yr,
-            "avg_health": round(obs.avg_health, 1) if obs and obs.avg_health else None,
+            "avg_health": round(obs.avg_health, 1) if obs and obs.avg_health is not None else None,
             "total_water_area": (
                 round(obs.total_water_area, 0)
-                if obs and obs.total_water_area
+                if obs and obs.total_water_area is not None
                 else None
             ),
             "avg_algae": (
-                round(obs.avg_algae, 4) if obs and obs.avg_algae else None
+                round(obs.avg_algae, 4) if obs and obs.avg_algae is not None else None
             ),
             "observation_count": obs.observation_count if obs else 0,
         })
@@ -261,8 +261,8 @@ def get_seasonal_aggregates(db: Session) -> list[dict]:
     return [
         {
             "month": int(r.month),
-            "avg_water_area": round(r.avg_water_area, 2) if r.avg_water_area else None,
-            "avg_algae": round(r.avg_algae, 4) if r.avg_algae else None,
+            "avg_water_area": round(r.avg_water_area, 2) if r.avg_water_area is not None else None,
+            "avg_algae": round(r.avg_algae, 4) if r.avg_algae is not None else None,
             "observation_count": r.observation_count,
         }
         for r in rows
@@ -343,8 +343,8 @@ def get_rankings(db: Session, category: str, limit: int = 20) -> list[dict]:
             "rank": i + 1,
             "lake_id": r.lake_id,
             "lake_name": r.lake_name,
-            "metric_value": round(r.metric_value, 4) if r.metric_value else None,
-            "health_score": round(r.health_score, 1) if r.health_score else None,
+            "metric_value": round(r.metric_value, 4) if r.metric_value is not None else None,
+            "health_score": round(r.health_score, 1) if r.health_score is not None else None,
             "custodian": r.custodian,
         }
         for i, r in enumerate(rows)
@@ -414,10 +414,10 @@ def get_movers(db: Session, year: int, limit: int = 20) -> dict:
         entries.append({
             "lake_id": r.lake_id,
             "lake_name": r.lake_name,
-            "current_year_avg_area": round(r.current_year_avg_area, 2) if r.current_year_avg_area else None,
-            "previous_year_avg_area": round(r.previous_year_avg_area, 2) if r.previous_year_avg_area else None,
+            "current_year_avg_area": round(r.current_year_avg_area, 2) if r.current_year_avg_area is not None else None,
+            "previous_year_avg_area": round(r.previous_year_avg_area, 2) if r.previous_year_avg_area is not None else None,
             "change_pct": round(r.change_pct, 2) if r.change_pct is not None else None,
-            "health_score": round(r.health_score, 1) if r.health_score else None,
+            "health_score": round(r.health_score, 1) if r.health_score is not None else None,
             "custodian": r.custodian,
         })
 
@@ -577,10 +577,14 @@ def get_pulse(db: Session, window_days: int = 120, top_n: int = 5) -> dict:
 
     # ~1-year-ago comparison: for each lake in `entries`, find the observation
     # nearest to (its latest_date - 365 days) within +/-45 days.
-    latest_by_lake = {r.lake_id: r.latest_date for r in rows}
+    latest_by_lake = {r.lake_id: (r.latest_date, r.latest_area) for r in rows}
     total_1yr_ago = 0.0
+    # Net change must compare the SAME set of lakes at both points in time;
+    # summing "now" over every lake but "1yr ago" only over lakes that have a
+    # year-old observation would report phantom growth.
+    total_now_matched = 0.0
     counted_any = False
-    for lake_id, latest_date in latest_by_lake.items():
+    for lake_id, (latest_date, latest_area) in latest_by_lake.items():
         target = latest_date - timedelta(days=365)
         lo = target - timedelta(days=45)
         hi = target + timedelta(days=45)
@@ -603,14 +607,11 @@ def get_pulse(db: Session, window_days: int = 120, top_n: int = 5) -> dict:
                 candidates, key=lambda c: abs((c.observation_date - target).days)
             )
             total_1yr_ago += nearest.water_area_m2
+            total_now_matched += latest_area or 0.0
             counted_any = True
 
     total_1yr_ago_val = round(total_1yr_ago) if counted_any else None
-    net_change = (
-        round(total_now - total_1yr_ago_val)
-        if (counted_any and total_now is not None)
-        else None
-    )
+    net_change = round(total_now_matched - total_1yr_ago) if counted_any else None
 
     return {
         "as_of": str(as_of) if as_of is not None else None,
