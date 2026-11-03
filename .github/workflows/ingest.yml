@@ -2,12 +2,23 @@ name: Incremental Ingestion
 
 on:
   schedule:
-    - cron: '0 6 */5 * *'  # Every 5 days at 06:00 UTC
-  workflow_dispatch: {}  # Manual trigger
+    # 06:00 UTC on days 1,6,11,16,21,26 of each month (~every 5 days; cron
+    # can't do a true rolling 5-day interval across month boundaries).
+    - cron: '0 6 */5 * *'
+  workflow_dispatch:
+    inputs:
+      lake_limit:
+        description: "Max lakes to process, largest first (blank = all lakes)"
+        required: false
+        default: ""
 
 concurrency:
   group: ingest
   cancel-in-progress: false
+
+# Read-only token: this job writes to your database, never to the repo.
+permissions:
+  contents: read
 
 jobs:
   ingest:
@@ -15,11 +26,8 @@ jobs:
     timeout-minutes: 120
 
     steps:
-      - uses: actions/checkout@v4
-
-      - uses: astral-sh/setup-uv@v5
-
       - name: Check required secrets
+        id: secrets
         env:
           DATABASE_URL: ${{ secrets.DATABASE_URL }}
           GEE_PROJECT_ID: ${{ secrets.GEE_PROJECT_ID }}
@@ -29,29 +37,60 @@ jobs:
           [ -z "$DATABASE_URL" ] && missing="$missing DATABASE_URL"
           [ -z "$GEE_PROJECT_ID" ] && missing="$missing GEE_PROJECT_ID"
           [ -z "$GEE_KEY" ] && missing="$missing GEE_SERVICE_ACCOUNT_KEY_JSON"
+          if [ "$missing" = " DATABASE_URL GEE_PROJECT_ID GEE_SERVICE_ACCOUNT_KEY_JSON" ]; then
+            # Fresh fork that hasn't been configured yet: skip quietly rather
+            # than paint the Actions tab red every 5 days.
+            echo "::notice::Ingestion not configured (no secrets set) — skipping. See docs/SETUP.md §11."
+            echo "configured=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
           if [ -n "$missing" ]; then
             echo "::error::Missing repo secrets:$missing — set them with 'gh secret set <NAME>'"
             exit 1
           fi
+          echo "configured=true" >> "$GITHUB_OUTPUT"
+
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
+        if: steps.secrets.outputs.configured == 'true'
+        with:
+          persist-credentials: false
+
+      - uses: astral-sh/setup-uv@d4b2f3b6ecc6e67c4457f6d3e41ec42d3d0fcb86 # v5.4.2
+        if: steps.secrets.outputs.configured == 'true'
+        with:
+          python-version: "3.12"
 
       - name: Write GEE key file
+        if: steps.secrets.outputs.configured == 'true'
         env:
           GEE_KEY: ${{ secrets.GEE_SERVICE_ACCOUNT_KEY_JSON }}
         run: |
-          printf '%s' "$GEE_KEY" > /tmp/gee-key.json
-          python3 -c "import json; json.load(open('/tmp/gee-key.json'))" \
-            || { echo "::error::GEE key file is not valid JSON"; exit 1; }
+          umask 077
+          printf '%s' "$GEE_KEY" > "$RUNNER_TEMP/gee-key.json"
+          python3 -c "import json,sys; json.load(open(sys.argv[1]))" "$RUNNER_TEMP/gee-key.json" \
+            || { echo "::error::GEE_SERVICE_ACCOUNT_KEY_JSON is not valid JSON"; exit 1; }
 
       - name: Install dependencies
-        run: cd pipeline && uv sync
+        if: steps.secrets.outputs.configured == 'true'
+        run: cd pipeline && uv sync --locked
 
       - name: Run incremental ingestion
+        if: steps.secrets.outputs.configured == 'true'
         env:
           DATABASE_URL: ${{ secrets.DATABASE_URL }}
           GEE_PROJECT_ID: ${{ secrets.GEE_PROJECT_ID }}
-          GEE_SERVICE_ACCOUNT_KEY: /tmp/gee-key.json
-        run: cd pipeline && uv run python -m pipeline.scripts.incremental_ingest --lake-limit 50
+          LAKE_LIMIT: ${{ inputs.lake_limit }}
+        run: |
+          export GEE_SERVICE_ACCOUNT_KEY="$RUNNER_TEMP/gee-key.json"
+          args=""
+          if [ -n "$LAKE_LIMIT" ]; then
+            case "$LAKE_LIMIT" in
+              *[!0-9]*) echo "::error::lake_limit must be a number"; exit 1 ;;
+            esac
+            args="--lake-limit $LAKE_LIMIT"
+          fi
+          cd pipeline && uv run python -m pipeline.scripts.incremental_ingest $args
 
       - name: Cleanup
         if: always()
-        run: rm -f /tmp/gee-key.json
+        run: rm -f "$RUNNER_TEMP/gee-key.json"

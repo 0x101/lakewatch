@@ -4,7 +4,7 @@ Tests validate that the correct GEE operations are called with correct
 parameters. They do NOT require GEE credentials -- all ee objects are mocked.
 """
 
-from unittest.mock import MagicMock, call, patch
+from unittest.mock import MagicMock, patch
 
 
 class TestCloudMasking:
