@@ -22,18 +22,25 @@ Contents:
 ## 1. Prerequisites
 
 - **Python 3.12+** and [uv](https://docs.astral.sh/uv/) (`curl -LsSf https://astral.sh/uv/install.sh | sh`)
-- **Node 20+** and npm
+- **Node 20.9+** and npm (`frontend/.nvmrc` pins the major version)
 - **PostgreSQL 14+** (local via Docker, or hosted). No PostGIS required —
   boundaries are stored as GeoJSON text.
 - A **Mapbox** account (free tier: 50K map loads/month).
 - A **Google Earth Engine** account (free for non-commercial use).
-- Optional: **ffmpeg** on your PATH if you want MP4 timelapses with audio.
+- Optional: **ffmpeg** on your PATH for MP4 timelapses (skipped with a
+  warning if absent) and **gifsicle** for size-optimised GIFs (unoptimised
+  GIFs are written if absent): `apt-get install ffmpeg gifsicle` /
+  `brew install ffmpeg gifsicle`.
 
 Copy the env template and fill it in as you go:
 
 ```bash
 cp .env.example .env
 ```
+
+That single repo-root `.env` is read by the pipeline, the backend **and** the
+frontend (`frontend/next.config.ts` loads it). Values already set in the
+environment — or in `frontend/.env.local` — take precedence.
 
 ---
 
@@ -128,7 +135,13 @@ else is optional:
 ```
 
 If `id` is omitted it's derived from `name` (slugified). If `latitude`/
-`longitude` are omitted they're computed from the polygon centroid.
+`longitude` are omitted they're computed from the polygon centroid, and
+`area_hectares` / `boundary_area_m2` default to the polygon's computed area.
+
+The whole file is validated before anything is written: non-polygon
+geometries, coordinates outside lon/lat range (i.e. not EPSG:4326), and two
+features that resolve to the same id abort the load with a list of problems.
+Re-running with an edited file updates every field of existing lakes.
 
 A 3-lake Bengaluru sample ships in `examples/sample-lakes.geojson`:
 
@@ -152,7 +165,7 @@ Single lake (good for a first run):
 ```bash
 cd pipeline
 uv run python -m pipeline.scripts.run_pipeline --lake ulsoor-lake \
-  --start-year 2015 --end-year 2026
+  --start-year 2015            # --end-year defaults to the current year
 ```
 
 All loaded lakes:
@@ -161,8 +174,15 @@ All loaded lakes:
 uv run python -m pipeline.scripts.full_backfill
 ```
 
-The backfill checkpoints its progress, so it's resumable if interrupted. After
-a backfill, per-lake stats (health score, trends) are refreshed automatically.
+The backfill checkpoints completed years in `pipeline/.backfill_checkpoint.json`
+(gitignored), so it's resumable if interrupted. The current year is never
+checkpointed — it is still gaining imagery — so re-running picks up new
+months. Delete the checkpoint file to force a full re-run. After a backfill,
+per-lake stats (health score, trends) are refreshed automatically.
+
+`full_backfill` and the scheduled `incremental_ingest` process **every** loaded
+lake by default (largest first). Pass `--lakes N` / `--lake-limit N` to cap it
+while you're testing against the free-tier quota.
 
 > **Free-tier note.** Earth Engine's free tier is generous but rate-limited.
 > Large cities × the full archive can take a while; backfills are chunked by
@@ -217,11 +237,19 @@ fresh fork shows your city's name everywhere without touching components.
 
 ## 8. Deploy: backend on Railway
 
-The backend ships with `backend/Dockerfile` and `backend/railway.toml`.
+The API image is the repo-root `Dockerfile` (lean: FastAPI + SQLAlchemy only,
+versions pinned to `backend/uv.lock`, runs as a non-root user, honours
+`$PORT`). `railway.toml` at the repo root points Railway at it.
+
+```bash
+docker build -t lakewatch-api .
+docker run -p 8000:8000 -e DATABASE_URL=postgresql://... lakewatch-api
+```
 
 1. Create a Railway project and add a **PostgreSQL** plugin.
-2. New service → deploy from your repo. Railway picks up `backend/railway.toml`
-   (Dockerfile build, healthcheck at `/health`).
+2. New service → deploy from your repo, leaving **Root Directory** empty (the
+   image needs both `backend/` and `pipeline/db/`). Railway picks up
+   `railway.toml` (Dockerfile build, healthcheck at `/health`).
 3. Set service variables: `DATABASE_URL` (use Railway's Postgres URL),
    `CORS_ORIGINS` (your frontend URL), and the R2 vars if you use R2.
 4. Run `init_db` and a backfill against the Railway database (locally with
@@ -235,7 +263,11 @@ The backend ships with `backend/Dockerfile` and `backend/railway.toml`.
 
 1. Import the repo into Vercel; set the **root directory** to `frontend/`.
 2. Set environment variables: `NEXT_PUBLIC_MAPBOX_TOKEN` and `BACKEND_URL`
-   (your Railway backend URL).
+   (your Railway backend URL). Optionally `NEXT_PUBLIC_SITE_URL` if your
+   public domain isn't the Vercel production domain or `city.config.json`'s
+   `domain` — it's the base for absolute OG/share-image URLs.
+   Keep Vercel's "Include files outside the root directory" setting on (the
+   default) so the build can sync the repo-root `city.config.json`.
 3. Deploy. The Next rewrites proxy API/frame/asset requests to `BACKEND_URL`.
 
 ---
@@ -251,9 +283,11 @@ R2 is S3-compatible with **zero egress fees**, which is why it's the default.
 3. The timelapse upload step (`pipeline/timelapse/upload.py`) pushes rendered
    assets to R2 and records their URLs.
 
-If you skip R2, the backend can serve frames/assets locally from
-`pipeline/data/` (mounted at `/frames` and `/assets`) — fine for small
-deployments, not for viral traffic.
+If you skip R2, the timelapse CLI records the local file paths instead and the
+backend serves `pipeline/data/` at `/frames` and `/assets` — fine for local
+dev and small deployments, not for viral traffic. (The Docker image doesn't
+bundle `pipeline/data/`; mount it as a volume at `/app/pipeline/data` if you
+serve assets from the container.)
 
 ---
 
@@ -271,7 +305,10 @@ Secrets):
   account key (the workflow writes it to a temp file at runtime).
 
 The workflow validates that the secrets are present and that the key is valid
-JSON before running.
+JSON before running. If **none** of them are set (an unconfigured fork) it
+skips with a notice instead of failing. Manual runs accept an optional
+`lake_limit`. Note that GitHub disables scheduled workflows on forks until you
+enable them in the fork's **Actions** tab.
 
 ---
 
@@ -283,15 +320,21 @@ JSON before running.
 | `GEE_PROJECT_ID`               | pipeline           | Your Earth Engine Cloud project id                      |
 | `GEE_SERVICE_ACCOUNT_KEY`      | pipeline (local)   | Path to the service-account JSON key file               |
 | `GEE_SERVICE_ACCOUNT_KEY_JSON` | CI (Actions secret)| Full JSON contents of the key (workflow writes to file) |
-| `CORS_ORIGINS`                 | backend            | Comma-separated allowed origins                         |
+| `CORS_ORIGINS`                 | backend            | Comma-separated allowed origins (GET-only, no credentials) |
 | `R2_ENDPOINT`                  | pipeline           | R2 S3 endpoint URL (optional)                           |
 | `R2_ACCESS_KEY`                | pipeline           | R2 access key (optional)                                |
 | `R2_SECRET_KEY`                | pipeline           | R2 secret key (optional)                                |
 | `R2_BUCKET`                    | pipeline           | R2 bucket name (optional)                               |
 | `R2_PUBLIC_URL`                | pipeline           | Public base URL for the bucket (optional)               |
+
+The data-export script (`export_data --r2`) uses the same `R2_*` names; the
+older `R2_ACCESS_KEY_ID` / `R2_SECRET_ACCESS_KEY` / `R2_BUCKET_NAME`
+spellings are still accepted.
 | `GEE_VERIFY_BBOX`            | pipeline           | Optional `min_lng,min_lat,max_lng,max_lat` for the `verify_gee` connectivity check |
 | `LAKEWATCH_WATERMARK`          | pipeline           | Timelapse watermark text (defaults to "LakeWatch")      |
 | `NEXT_PUBLIC_MAPBOX_TOKEN`     | frontend           | Mapbox access token                                     |
 | `BACKEND_URL`                  | frontend           | URL the frontend proxies API/frame requests to          |
+| `NEXT_PUBLIC_SITE_URL`         | frontend           | Public site URL for absolute OG image links (optional)  |
+| `LAKEWATCH_CHECKPOINT_FILE`    | pipeline           | Override the backfill checkpoint path (optional)        |
 
 Never commit `.env` or your service-account key — both are gitignored.
