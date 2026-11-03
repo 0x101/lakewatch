@@ -3,10 +3,8 @@
 import json
 from unittest.mock import MagicMock, patch
 
-import pytest
 
 from pipeline.satellite.backfill import (
-    CHECKPOINT_FILE,
     backfill_lake,
     load_checkpoint,
     save_checkpoint,
@@ -125,3 +123,36 @@ class TestBackfillLake:
         assert 2015 in result["years_completed"]
         assert 2017 in result["years_completed"]
         assert result["total_observations"] == 2
+
+
+class TestBackfillCurrentYear:
+    """The in-progress year must stay re-processable."""
+
+    @patch("pipeline.satellite.backfill.upsert_observations", return_value=1)
+    @patch("pipeline.satellite.backfill.filter_cloudy", side_effect=lambda obs: obs)
+    @patch("pipeline.satellite.backfill.extract_observations_for_year")
+    def test_current_year_not_checkpointed(
+        self, mock_extract, _mock_filter, _mock_upsert, tmp_path
+    ):
+        from datetime import date
+
+        this_year = date.today().year
+        mock_extract.return_value = [{"date": f"{this_year}-01-05", "cloud_pct": 0.1}]
+        fake_checkpoint = tmp_path / "checkpoint.json"
+
+        with patch("pipeline.satellite.backfill.CHECKPOINT_FILE", fake_checkpoint):
+            result = backfill_lake(
+                "x", MagicMock(), start_year=this_year - 1, session=MagicMock()
+            )
+            done = load_checkpoint("x")
+
+        assert result["years_completed"] == [this_year - 1, this_year]
+        assert done == {this_year - 1}
+
+    @patch("pipeline.satellite.backfill.extract_observations_for_year")
+    def test_failed_year_rolls_back_session(self, mock_extract, tmp_path):
+        mock_extract.side_effect = RuntimeError("db write failed")
+        session = MagicMock()
+        with patch("pipeline.satellite.backfill.CHECKPOINT_FILE", tmp_path / "cp.json"):
+            backfill_lake("x", MagicMock(), start_year=2015, end_year=2015, session=session)
+        session.rollback.assert_called_once()

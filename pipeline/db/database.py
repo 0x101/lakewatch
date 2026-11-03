@@ -17,7 +17,9 @@ load_dotenv()
 
 DATABASE_URL = os.getenv("DATABASE_URL") or "postgresql://localhost:5432/lakewatch"
 
-engine = create_engine(DATABASE_URL, echo=False)
+# Hosted Postgres (Railway, Neon, ...) drops idle connections; pre-ping
+# transparently replaces dead ones instead of failing the next request.
+engine = create_engine(DATABASE_URL, echo=False, pool_pre_ping=True)
 SessionLocal = sessionmaker(bind=engine)
 
 

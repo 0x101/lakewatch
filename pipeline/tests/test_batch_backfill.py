@@ -1,10 +1,8 @@
 """Tests for batch backfill orchestrator script."""
 
-import time
 from types import SimpleNamespace
-from unittest.mock import MagicMock, call, patch
+from unittest.mock import MagicMock, patch
 
-import pytest
 
 from pipeline.scripts.batch_backfill import batch_backfill, get_top_lakes
 

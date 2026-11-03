@@ -57,7 +57,13 @@ def incremental_ingest_lake(lake, session) -> int:
     total_upserted = 0
 
     for year in range(start_date.year, end_date.year + 1):
-        observations = extract_observations_for_year(geometry, year)
+        # Only query months that can contain new imagery. Re-querying the whole
+        # year each run costs 12 GEE calls per lake per run for nothing.
+        first_month = start_date.month if year == start_date.year else 1
+        last_month = end_date.month if year == end_date.year else 12
+        observations = extract_observations_for_year(
+            geometry, year, months=range(first_month, last_month + 1)
+        )
 
         # Filter to only observations after the cutoff date
         new_obs = [
@@ -78,11 +84,12 @@ def incremental_ingest_lake(lake, session) -> int:
     return total_upserted
 
 
-def incremental_ingest_all(lake_limit: int = 50) -> dict:
+def incremental_ingest_all(lake_limit: int | None = None) -> dict:
     """Run incremental ingestion for all tracked lakes.
 
     Args:
-        lake_limit: Maximum number of lakes to process.
+        lake_limit: Maximum number of lakes to process (largest first).
+            ``None`` (the default) processes every loaded lake.
 
     Returns:
         Summary dict with per-lake results.
@@ -90,12 +97,10 @@ def incremental_ingest_all(lake_limit: int = 50) -> dict:
     initialize_gee()
     session = get_session()
 
-    lakes = (
-        session.query(Lake)
-        .order_by(Lake.area_hectares.desc().nullslast())
-        .limit(lake_limit)
-        .all()
-    )
+    query = session.query(Lake).order_by(Lake.area_hectares.desc().nullslast(), Lake.id)
+    if lake_limit is not None:
+        query = query.limit(lake_limit)
+    lakes = query.all()
 
     results = {}
     total_observations = 0
@@ -111,7 +116,12 @@ def incremental_ingest_all(lake_limit: int = 50) -> dict:
             logger.info("Lake %s: %d new observations", lake.id, count)
         except Exception:
             logger.exception("Failed incremental ingest for %s", lake.id)
+            # Roll back so one bad lake doesn't poison the shared session and
+            # fail every lake after it.
+            session.rollback()
             results[lake.id] = {"observations": 0, "status": "error"}
+
+    session.close()
 
     error_count = sum(1 for r in results.values() if r["status"] == "error")
     summary = {
@@ -132,7 +142,12 @@ if __name__ == "__main__":
     )
 
     parser = argparse.ArgumentParser(description="Incremental satellite data ingestion")
-    parser.add_argument("--lake-limit", type=int, default=50, help="Max lakes to process (default: 50)")
+    parser.add_argument(
+        "--lake-limit",
+        type=int,
+        default=None,
+        help="Max lakes to process, largest first (default: all lakes)",
+    )
 
     args = parser.parse_args()
     result = incremental_ingest_all(lake_limit=args.lake_limit)

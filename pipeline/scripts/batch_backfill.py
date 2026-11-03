@@ -20,28 +20,26 @@ from pipeline.satellite.extract import lake_to_ee_geometry
 logger = logging.getLogger(__name__)
 
 
-def get_top_lakes(session, limit: int = 50) -> list:
+def get_top_lakes(session, limit: int | None = None) -> list:
     """Query the top lakes by area_hectares descending.
 
     Args:
         session: SQLAlchemy session.
-        limit: Maximum number of lakes to return.
+        limit: Maximum number of lakes to return. ``None`` returns all lakes.
 
     Returns:
         List of Lake ORM objects ordered by area descending.
     """
-    return (
-        session.query(Lake)
-        .order_by(Lake.area_hectares.desc().nullslast())
-        .limit(limit)
-        .all()
-    )
+    query = session.query(Lake).order_by(Lake.area_hectares.desc().nullslast(), Lake.id)
+    if limit is not None:
+        query = query.limit(limit)
+    return query.all()
 
 
 def batch_backfill(
     batch_size: int = 10,
     pause_seconds: int = 60,
-    lake_limit: int = 50,
+    lake_limit: int | None = None,
 ) -> dict:
     """Run historical backfill for multiple lakes in batches.
 
@@ -52,7 +50,7 @@ def batch_backfill(
     Args:
         batch_size: Number of lakes to process per batch.
         pause_seconds: Seconds to sleep between batches.
-        lake_limit: Maximum number of lakes to process.
+        lake_limit: Maximum number of lakes to process. ``None`` = all lakes.
 
     Returns:
         Summary dict with lakes_processed, total_observations, failed.
@@ -93,6 +91,8 @@ def batch_backfill(
                 )
             except Exception:
                 logger.exception("Failed to process lake %s", lake.id)
+                # Keep the shared session usable for the remaining lakes.
+                session.rollback()
                 failed.append(lake.id)
 
         logger.info("Batch %d complete (%d/%d lakes done)", batch_num, batch_idx + len(batch), len(lakes))
@@ -101,6 +101,8 @@ def batch_backfill(
         if batch_idx + batch_size < len(lakes):
             logger.info("Pausing %d seconds before next batch...", pause_seconds)
             time.sleep(pause_seconds)
+
+    session.close()
 
     summary = {
         "lakes_processed": lakes_processed,
@@ -121,7 +123,12 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Batch backfill lakes with satellite data")
     parser.add_argument("--batch-size", type=int, default=10, help="Lakes per batch (default: 10)")
     parser.add_argument("--pause-seconds", type=int, default=60, help="Pause between batches (default: 60)")
-    parser.add_argument("--lake-limit", type=int, default=50, help="Max lakes to process (default: 50)")
+    parser.add_argument(
+        "--lake-limit",
+        type=int,
+        default=None,
+        help="Max lakes to process, largest first (default: all lakes)",
+    )
 
     args = parser.parse_args()
     batch_backfill(
