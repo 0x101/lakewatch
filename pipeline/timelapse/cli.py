@@ -13,6 +13,7 @@ Usage:
 
 import argparse
 import logging
+import shutil
 import time
 from datetime import datetime
 from pathlib import Path
@@ -34,7 +35,11 @@ from pipeline.timelapse.export import (
 )
 from pipeline.timelapse.render import render_frame
 from pipeline.timelapse.select import select_best_per_month
-from pipeline.timelapse.upload import get_r2_client, upload_timelapse_assets
+from pipeline.timelapse.upload import (
+    get_r2_client,
+    register_local_assets,
+    upload_timelapse_assets,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -83,7 +88,9 @@ def generate_timelapse(
 
     # Step 3: Create output directories
     if output_dir is None:
-        output_dir = Path("pipeline/data")
+        # Anchored to the package (not the CWD) so the backend's /frames and
+        # /assets mounts find the output wherever this was run from.
+        output_dir = Path(__file__).resolve().parent.parent / "data"
     output_dir = Path(output_dir)
     frames_dir = output_dir / "frames" / lake_id
     assets_dir = output_dir / "assets" / lake_id
@@ -185,10 +192,17 @@ def generate_timelapse(
         frame_paths, assets_dir / f"{lake_id}-thumbnail.png"
     )
 
-    # Step 8: Generate video versions
-    video_full_path, video_share_path = generate_video_versions(
-        frames_dir, assets_dir, lake_id, music_path=music_path
-    )
+    # Step 8: Generate video versions (needs the ffmpeg system binary)
+    if shutil.which("ffmpeg"):
+        video_full_path, video_share_path = generate_video_versions(
+            frames_dir, assets_dir, lake_id, music_path=music_path
+        )
+    else:
+        logger.warning(
+            "ffmpeg not found on PATH — skipping MP4 export. Install it "
+            "(apt-get install ffmpeg / brew install ffmpeg) for video output."
+        )
+        video_full_path = video_share_path = None
 
     # Step 9: Upload to R2
     r2_urls = []
@@ -200,9 +214,11 @@ def generate_timelapse(
                 "R2 credentials not configured, skipping upload"
             )
             client = None
-        r2_urls = upload_timelapse_assets(
-            client, assets_dir, lake_id, session
-        )
+        if client is not None:
+            r2_urls = upload_timelapse_assets(client, assets_dir, lake_id, session)
+        else:
+            # No R2: point the DB at the local files the backend serves.
+            register_local_assets(assets_dir, lake_id, session)
 
     # Step 10: Log summary
     gif_full_size = gif_full_path.stat().st_size / (1024 * 1024)
