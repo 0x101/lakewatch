@@ -19,7 +19,8 @@ Input format — a GeoJSON FeatureCollection where each Feature has:
         ward       (optional)
         custodian  (optional)
         citizen_group (optional)
-        area_hectares (optional)
+        area_hectares (optional)  defaults to the polygon's computed area
+        boundary_area_m2 (optional) computed from the polygon if absent
 
 Only `name` is required; everything else is optional and degrades to NULL.
 A minimal 3-lake example ships in examples/sample-lakes.geojson.
@@ -29,6 +30,7 @@ Re-running is safe: lakes are upserted by id (insert-or-update).
 
 import argparse
 import json
+import math
 import re
 import sys
 from pathlib import Path
@@ -77,6 +79,64 @@ def _centroid(geometry: dict) -> tuple[float, float]:
     raise ValueError(f"Unsupported geometry type: {gtype!r} (expected Polygon/MultiPolygon)")
 
 
+_EARTH_RADIUS_M = 6_371_008.8
+
+
+def _ring_area_m2(ring, lat0: float) -> float:
+    """Planar shoelace area of a lon/lat ring projected to local metres.
+
+    Uses an equirectangular projection centred on ``lat0``. At lake scale
+    (< a few km) this is within a fraction of a percent of the geodesic area,
+    and it avoids a pyproj/GDAL dependency.
+    """
+    k = math.cos(math.radians(lat0))
+    pts = [
+        (math.radians(lon) * _EARTH_RADIUS_M * k, math.radians(lat) * _EARTH_RADIUS_M)
+        for lon, lat, *_ in ring
+    ]
+    area = 0.0
+    for (x1, y1), (x2, y2) in zip(pts, pts[1:] + pts[:1]):
+        area += x1 * y2 - x2 * y1
+    return abs(area) / 2.0
+
+
+def _polygon_area_m2(geometry: dict, lat0: float) -> float:
+    """Approximate area (m²) of a Polygon/MultiPolygon, holes subtracted."""
+    polys = (
+        [geometry["coordinates"]]
+        if geometry["type"] == "Polygon"
+        else geometry["coordinates"]
+    )
+    total = 0.0
+    for poly in polys:
+        if not poly:
+            continue
+        total += _ring_area_m2(poly[0], lat0)
+        total -= sum(_ring_area_m2(hole, lat0) for hole in poly[1:])
+    return total
+
+
+def _validate_geometry(geometry) -> str | None:
+    """Return an error message if ``geometry`` is unusable, else None."""
+    if not isinstance(geometry, dict):
+        return "missing geometry"
+    gtype = geometry.get("type")
+    if gtype not in ("Polygon", "MultiPolygon"):
+        return f"unsupported geometry type {gtype!r} (expected Polygon/MultiPolygon)"
+    coords = geometry.get("coordinates")
+    polys = [coords] if gtype == "Polygon" else coords
+    if not polys or not all(poly and len(poly[0]) >= 4 for poly in polys):
+        return "polygon has no outer ring with at least 4 positions"
+    for poly in polys:
+        for lon, lat, *_ in poly[0]:
+            if not (-180 <= lon <= 180 and -90 <= lat <= 90):
+                return (
+                    f"coordinate ({lon}, {lat}) is outside lon/lat range — is the "
+                    "file in EPSG:4326? Reproject with: ogr2ogr -t_srs EPSG:4326"
+                )
+    return None
+
+
 def load_lakes_from_geojson(geojson_path: str, dry_run: bool = False) -> int:
     """Parse a GeoJSON FeatureCollection and upsert all lakes. Returns the count."""
     path = Path(geojson_path)
@@ -92,57 +152,86 @@ def load_lakes_from_geojson(geojson_path: str, dry_run: bool = False) -> int:
     features = data.get("features", [])
     print(f"Found {len(features)} features in {path}")
 
+    # Validate everything up front so a bad feature halfway through the file
+    # doesn't leave the database half-loaded, and so two features that slugify
+    # to the same id don't silently overwrite each other.
+    rows: list[dict] = []
+    seen: dict[str, str] = {}
+    errors: list[str] = []
+    for idx, feat in enumerate(features):
+        props = feat.get("properties") or {}
+        name = props.get("name")
+        if not name:
+            print(f"  SKIP feature #{idx}: no 'name' property", file=sys.stderr)
+            continue
+        geometry = feat.get("geometry")
+        problem = _validate_geometry(geometry)
+        if problem:
+            errors.append(f"feature #{idx} ({name}): {problem}")
+            continue
+        lake_id = str(props.get("id") or slugify(name))
+        if lake_id in seen:
+            errors.append(
+                f"feature #{idx} ({name}): id {lake_id!r} already used by "
+                f"{seen[lake_id]!r} — give one of them an explicit 'id' property"
+            )
+            continue
+        seen[lake_id] = name
+
+        lon, lat = props.get("longitude"), props.get("latitude")
+        if lon is None or lat is None:
+            lon, lat = _centroid(geometry)
+
+        boundary_area_m2 = props.get("boundary_area_m2")
+        if boundary_area_m2 is None:
+            boundary_area_m2 = round(_polygon_area_m2(geometry, lat), 1)
+
+        rows.append(
+            {
+                "id": lake_id,
+                "name": name,
+                "name_local": props.get("name_local") or props.get("name_kannada"),
+                "latitude": lat,
+                "longitude": lon,
+                "boundary_geojson": json.dumps(geometry),
+                "ward": props.get("ward"),
+                "custodian": props.get("custodian"),
+                "citizen_group": props.get("citizen_group"),
+                # Falls back to the polygon area so "largest first" ordering
+                # in the backfill/ingest scripts works without this property.
+                "area_hectares": (
+                    props["area_hectares"]
+                    if props.get("area_hectares") is not None
+                    else round(boundary_area_m2 / 10_000, 2)
+                ),
+                "boundary_area_m2": boundary_area_m2,
+            }
+        )
+
+    if errors:
+        print(f"ERROR: {len(errors)} invalid feature(s); nothing was loaded:", file=sys.stderr)
+        for err in errors:
+            print(f"  - {err}", file=sys.stderr)
+        sys.exit(1)
+
     if dry_run:
-        for feat in features[:10]:
-            name = feat.get("properties", {}).get("name", "<unnamed>")
-            lake_id = feat.get("properties", {}).get("id") or slugify(name)
-            print(f"  {lake_id}: {name}")
-        if len(features) > 10:
-            print(f"  ... and {len(features) - 10} more")
-        return len(features)
+        for row in rows[:10]:
+            print(f"  {row['id']}: {row['name']} (~{row['boundary_area_m2'] / 10_000:.1f} ha)")
+        if len(rows) > 10:
+            print(f"  ... and {len(rows) - 10} more")
+        return len(rows)
 
     Base.metadata.create_all(engine)
 
     session = get_session()
     count = 0
     try:
-        for feat in features:
-            props = feat.get("properties", {})
-            geometry = feat["geometry"]
-            name = props.get("name")
-            if not name:
-                print("  SKIP feature with no 'name' property", file=sys.stderr)
-                continue
-
-            lake_id = props.get("id") or slugify(name)
-            lon, lat = props.get("longitude"), props.get("latitude")
-            if lon is None or lat is None:
-                lon, lat = _centroid(geometry)
-
-            geojson_str = json.dumps(geometry)
-            values = {
-                "id": lake_id,
-                "name": name,
-                "name_local": props.get("name_local") or props.get("name_kannada"),
-                "latitude": lat,
-                "longitude": lon,
-                "boundary_geojson": geojson_str,
-                "ward": props.get("ward"),
-                "custodian": props.get("custodian"),
-                "citizen_group": props.get("citizen_group"),
-                "area_hectares": props.get("area_hectares"),
-                "boundary_area_m2": props.get("boundary_area_m2"),
-            }
+        for values in rows:
+            # Re-running with an edited file updates every field except the id,
+            # so fixing a ward/custodian/local name in the GeoJSON takes effect.
             stmt = pg_insert(Lake).values(**values).on_conflict_do_update(
                 index_elements=["id"],
-                set_={
-                    "name": name,
-                    "latitude": lat,
-                    "longitude": lon,
-                    "boundary_geojson": geojson_str,
-                    "area_hectares": props.get("area_hectares"),
-                    "boundary_area_m2": props.get("boundary_area_m2"),
-                },
+                set_={k: v for k, v in values.items() if k != "id"},
             )
             session.execute(stmt)
             count += 1
