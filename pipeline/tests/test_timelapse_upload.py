@@ -1,6 +1,5 @@
 """Tests for R2 timelapse asset upload module."""
 
-from pathlib import Path
 from unittest.mock import MagicMock, patch
 
 import pytest

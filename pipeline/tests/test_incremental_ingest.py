@@ -1,10 +1,9 @@
 """Tests for incremental ingestion script."""
 
-from datetime import date, timedelta
+from datetime import date
 from types import SimpleNamespace
-from unittest.mock import MagicMock, call, patch
+from unittest.mock import MagicMock, patch
 
-import pytest
 
 from pipeline.scripts.incremental_ingest import (
     incremental_ingest_all,
@@ -134,3 +133,41 @@ class TestIncrementalIngestAll:
         assert mock_refresh.call_count == 3
         for lake in lakes:
             mock_refresh.assert_any_call(lake.id, session=session)
+
+
+class TestIncrementalMonthWindow:
+    """Only months that can hold new imagery are queried from GEE."""
+
+    @patch("pipeline.scripts.incremental_ingest.date")
+    @patch("pipeline.scripts.incremental_ingest.upsert_observations", return_value=0)
+    @patch("pipeline.scripts.incremental_ingest.filter_cloudy", side_effect=lambda o: o)
+    @patch("pipeline.scripts.incremental_ingest.extract_observations_for_year", return_value=[])
+    @patch("pipeline.scripts.incremental_ingest.lake_to_ee_geometry")
+    def test_months_span_year_boundary(self, _geom, mock_extract, _f, _u, mock_date):
+        mock_date.today.return_value = date(2026, 2, 10)
+        lake = _make_mock_lake("x")
+        session = MagicMock()
+        session.query.return_value.filter_by.return_value.scalar.return_value = date(2025, 11, 20)
+
+        incremental_ingest_lake(lake, session)
+
+        calls = [(c.args[1], list(c.kwargs["months"])) for c in mock_extract.call_args_list]
+        assert calls == [(2025, [11, 12]), (2026, [1, 2])]
+
+
+@patch("pipeline.scripts.incremental_ingest.refresh_lake_stats")
+@patch("pipeline.scripts.incremental_ingest.incremental_ingest_lake")
+@patch("pipeline.scripts.incremental_ingest.get_session")
+@patch("pipeline.scripts.incremental_ingest.initialize_gee")
+def test_failed_lake_rolls_back_and_others_continue(_gee, mock_get_session, mock_lake, _refresh):
+    session = MagicMock()
+    mock_get_session.return_value = session
+    lakes = [_make_mock_lake("a"), _make_mock_lake("b")]
+    session.query.return_value.order_by.return_value.all.return_value = lakes
+    mock_lake.side_effect = [RuntimeError("boom"), 3]
+
+    summary = incremental_ingest_all()
+
+    session.rollback.assert_called_once()
+    assert summary["results"]["a"]["status"] == "error"
+    assert summary["results"]["b"] == {"observations": 3, "status": "ok"}

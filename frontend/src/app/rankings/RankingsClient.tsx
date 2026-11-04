@@ -175,9 +175,12 @@ function LeaderboardTab({ category }: { category: string }) {
 /* ── Movers-based tab (most_improved / most_declined) ── */
 
 function MoversTab({ direction }: { direction: "up" | "down" }) {
-  const [year, setYear] = useState(2024);
+  // Default to the last full calendar year; offer every year back to 2016
+  // (Sentinel-2 L2A coverage starts in 2015, so 2016 is the first YoY pair).
+  const lastFullYear = new Date().getFullYear() - 1;
+  const [year, setYear] = useState(lastFullYear);
   const { data, isLoading } = useMovers(year);
-  const years = Array.from({ length: 8 }, (_, i) => 2025 - i);
+  const years = Array.from({ length: lastFullYear - 2015 }, (_, i) => lastFullYear - i);
 
   const entries =
     direction === "up" ? data?.improvers ?? [] : data?.decliners ?? [];

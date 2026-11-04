@@ -21,14 +21,19 @@ extension seams.
 See [`docs/SETUP.md`](docs/SETUP.md) for full environment setup. In short:
 
 ```bash
-cd pipeline && uv sync && uv run pytest
-cd ../backend && uv sync && uv run pytest
-cd ../frontend && npm install && npm run build
+cd pipeline && uv sync --extra dev && uv run pytest && uv run ruff check .
+cd ../backend && uv sync --extra dev && uv run pytest && uv run ruff check .
+cd ../frontend && npm ci && npm run lint && npm run typecheck && npm run build
 ```
+
+CI (`.github/workflows/ci.yml`) runs exactly these, plus a Docker build of the
+API image. If you change dependencies, commit the updated `uv.lock` /
+`package-lock.json` — CI installs with `--locked` / `npm ci` and fails on a
+stale lockfile.
 
 ## Style & checks
 
-- Python: `ruff check .` and `ruff format .` (line length 100).
+- Python: `uv run ruff check .` (line length 100).
 - TypeScript: `npm run lint` in `frontend/`.
 - Add or update tests for behavior changes. Pipeline tests mock Earth Engine;
   backend tests mock the database — neither needs live credentials.

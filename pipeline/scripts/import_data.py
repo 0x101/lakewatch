@@ -11,17 +11,16 @@ Usage:
 
 import argparse
 import json
-from datetime import date, datetime
+from datetime import date
 from pathlib import Path
 
 from dotenv import load_dotenv
-from sqlalchemy import text
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 
 load_dotenv()
 
-from pipeline.db.database import engine, get_session
-from pipeline.db.models import (
+from pipeline.db.database import engine, get_session  # noqa: E402
+from pipeline.db.models import (  # noqa: E402
     Base,
     Lake,
     LakeStats,
@@ -30,7 +29,8 @@ from pipeline.db.models import (
     TimelapseFrame,
 )
 
-EXPORT_DIR = Path("data/export")
+# Repo-root data/export/ regardless of the CWD (gitignored).
+EXPORT_DIR = Path(__file__).resolve().parents[2] / "data" / "export"
 
 
 def ensure_tables():

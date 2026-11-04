@@ -3,7 +3,6 @@
 from datetime import date, timedelta
 from types import SimpleNamespace
 
-import pytest
 
 from pipeline.metrics.health_score import compute_health_score
 

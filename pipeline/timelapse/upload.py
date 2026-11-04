@@ -158,3 +158,41 @@ def upload_timelapse_assets(
         "Uploaded %d assets for lake %s to R2", len(urls), lake_id
     )
     return urls
+
+
+def register_local_assets(output_dir: Path, lake_id: str, session) -> list[str]:
+    """Record locally generated assets in the DB when R2 isn't configured.
+
+    The backend serves ``pipeline/data/assets`` at ``/assets`` and rewrites
+    stored local paths to that mount, so this is what makes the timelapse
+    download buttons work in a no-R2 (local or small) deployment.
+
+    Returns:
+        List of local paths that were registered.
+    """
+    output_dir = Path(output_dir)
+    paths = []
+    for asset_type, filename_template in ASSET_MAP.items():
+        local_path = output_dir / filename_template.format(lake_id=lake_id)
+        if not local_path.exists():
+            continue
+        stmt = pg_insert(TimelapseAsset).values(
+            lake_id=lake_id,
+            asset_type=asset_type,
+            r2_url=str(local_path),
+            file_size_bytes=local_path.stat().st_size,
+        )
+        stmt = stmt.on_conflict_do_update(
+            index_elements=["lake_id", "asset_type"],
+            set_={
+                "r2_url": stmt.excluded.r2_url,
+                "file_size_bytes": stmt.excluded.file_size_bytes,
+            },
+        )
+        session.execute(stmt)
+        paths.append(str(local_path))
+
+    if paths:
+        session.commit()
+    logger.info("Registered %d local assets for lake %s", len(paths), lake_id)
+    return paths

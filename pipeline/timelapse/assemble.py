@@ -20,6 +20,10 @@ import numpy as np
 from PIL import Image
 from pygifsicle import optimize as gifsicle_optimize
 
+# gifsicle is a system binary (apt/brew install gifsicle), not a pip package.
+# Without it we still write a valid GIF, just without size optimisation.
+HAS_GIFSICLE = shutil.which("gifsicle") is not None
+
 logger = logging.getLogger(__name__)
 
 # Watermark stamped onto timelapse frames. Set LAKEWATCH_WATERMARK to your
@@ -101,6 +105,14 @@ def assemble_gif(
         duration=duration_ms,
         loop=0,
     )
+
+    if not HAS_GIFSICLE:
+        logger.warning(
+            "gifsicle not found on PATH — writing an unoptimised GIF. "
+            "Install it (apt-get install gifsicle / brew install gifsicle) for "
+            "much smaller files."
+        )
+        return output_path
 
     # Optimize with gifsicle (lossless first pass)
     gifsicle_optimize(str(output_path))
@@ -242,6 +254,11 @@ def assemble_video(
 
     input_pattern = str(frame_dir / "*.png")
 
+    # Keep two-pass stats files out of the CWD (concurrent runs would clobber
+    # each other's ffmpeg2pass-0.log otherwise).
+    passlog_dir = tempfile.mkdtemp(prefix="lakewatch-ffmpeg-")
+    passlog = os.path.join(passlog_dir, "ffmpeg2pass")
+
     # Pass 1: analysis
     pass1_cmd = [
         "ffmpeg",
@@ -260,12 +277,19 @@ def assemble_video(
         "yuv420p",
         "-pass",
         "1",
+        "-passlogfile",
+        passlog,
+        "-an",
         "-f",
         "mp4",
-        "/dev/null",
+        os.devnull,
     ]
     logger.info("ffmpeg Pass 1 (analysis): %s", " ".join(pass1_cmd))
-    subprocess.run(pass1_cmd, check=True, capture_output=True)
+    try:
+        subprocess.run(pass1_cmd, check=True, capture_output=True)
+    except Exception:
+        shutil.rmtree(passlog_dir, ignore_errors=True)
+        raise
 
     # Pass 2: encode (with optional music)
     pass2_cmd = [
@@ -292,6 +316,8 @@ def assemble_video(
             "yuv420p",
             "-pass",
             "2",
+            "-passlogfile",
+            passlog,
         ]
     )
 
@@ -301,11 +327,10 @@ def assemble_video(
     pass2_cmd.append(str(output_path))
 
     logger.info("ffmpeg Pass 2 (encode): %s", " ".join(pass2_cmd))
-    subprocess.run(pass2_cmd, check=True, capture_output=True)
-
-    # Clean up ffmpeg two-pass log files
-    for log_file in Path.cwd().glob("ffmpeg2pass*"):
-        log_file.unlink(missing_ok=True)
+    try:
+        subprocess.run(pass2_cmd, check=True, capture_output=True)
+    finally:
+        shutil.rmtree(passlog_dir, ignore_errors=True)
 
     final_size_mb = output_path.stat().st_size / (1024 * 1024)
     logger.info("Video assembled: %s (%.2fMB)", output_path.name, final_size_mb)

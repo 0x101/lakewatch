@@ -19,23 +19,22 @@ import argparse
 import json
 import os
 import subprocess
-import sys
 from datetime import date, datetime
 from pathlib import Path
 
 from dotenv import load_dotenv
-from sqlalchemy import select, text
+from sqlalchemy import select
 
 load_dotenv()
 
-from pipeline.db.database import get_session
+from pipeline.db.database import get_session  # noqa: E402
 
 # Generic tables (always present). The city ext tables (EMPRIRecord,
 # KSPCBMeasurement, Stream, StreamLakeConnection) are imported via the
 # HAS_CITY_EXTENSIONS guard so this SHARED script imports cleanly in the public
 # "lakewatch" repo where models_ext.py does not exist. main() exports only core
 # tables today; any future ext export must be wrapped in `if HAS_CITY_EXTENSIONS:`.
-from pipeline.db.models import (
+from pipeline.db.models import (  # noqa: E402
     HAS_CITY_EXTENSIONS,
     Lake,
     LakeStats,
@@ -57,7 +56,8 @@ else:
     Stream = None
     StreamLakeConnection = None
 
-EXPORT_DIR = Path("data/export")
+# Repo-root data/export/ regardless of the CWD (gitignored).
+EXPORT_DIR = Path(__file__).resolve().parents[2] / "data" / "export"
 
 
 def json_serial(obj):
@@ -225,18 +225,22 @@ def export_sql_dump():
 
     # Parse DATABASE_URL for pg_dump
     # postgresql://user:pass@host:port/dbname
-    from urllib.parse import urlparse
+    from urllib.parse import parse_qs, unquote, urlparse
 
     parsed = urlparse(db_url)
     env = os.environ.copy()
-    env["PGPASSWORD"] = parsed.password or ""
+    # URL-encoded passwords (e.g. "p%40ss") must be decoded for libpq.
+    env["PGPASSWORD"] = unquote(parsed.password or "")
+    sslmode = parse_qs(parsed.query).get("sslmode")
+    if sslmode:
+        env["PGSSLMODE"] = sslmode[0]
 
     dump_path = EXPORT_DIR / "lakewatch_dump.sql"
     cmd = [
         "pg_dump",
         "-h", parsed.hostname or "localhost",
         "-p", str(parsed.port or 5432),
-        "-U", parsed.username or "lakewatch",
+        "-U", unquote(parsed.username or "lakewatch"),
         "-d", parsed.path.lstrip("/"),
         "--no-owner",
         "--no-privileges",
@@ -263,12 +267,14 @@ def upload_to_r2():
     import boto3
 
     endpoint = os.getenv("R2_ENDPOINT") or f"https://{os.getenv('R2_ACCOUNT_ID', '')}.r2.cloudflarestorage.com"
-    access_key = os.getenv("R2_ACCESS_KEY_ID")
-    secret_key = os.getenv("R2_SECRET_ACCESS_KEY")
-    bucket = os.getenv("R2_BUCKET_NAME")
+    # Same variable names as the timelapse uploader and .env.example; the
+    # older *_ID / *_NAME spellings are still accepted for existing setups.
+    access_key = os.getenv("R2_ACCESS_KEY") or os.getenv("R2_ACCESS_KEY_ID")
+    secret_key = os.getenv("R2_SECRET_KEY") or os.getenv("R2_SECRET_ACCESS_KEY")
+    bucket = os.getenv("R2_BUCKET") or os.getenv("R2_BUCKET_NAME")
 
     if not all([access_key, secret_key, bucket]):
-        print("  SKIP R2 upload — missing R2_ACCESS_KEY_ID, R2_SECRET_ACCESS_KEY, or R2_BUCKET_NAME in .env")
+        print("  SKIP R2 upload — set R2_ENDPOINT, R2_ACCESS_KEY, R2_SECRET_KEY and R2_BUCKET")
         return
 
     client = boto3.client(
@@ -323,6 +329,10 @@ def main():
             frames_count = export_timelapse_frames(session, args.lake)
         finally:
             session.close()
+        print(
+            f"  Totals: {lake_count} lakes, {obs_count} observations, "
+            f"{stats_count} stats, {assets_count} assets, {frames_count} frames"
+        )
         print()
 
     if args.format in ("sql", "all"):

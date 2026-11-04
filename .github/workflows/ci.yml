@@ -1,0 +1,106 @@
+name: CI
+
+# Lint + test + build on every push and PR. Needs no secrets: pipeline tests
+# mock Earth Engine, backend tests mock the database. So this runs as-is on a
+# fresh fork.
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch: {}
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  python:
+    name: ${{ matrix.package }} (lint + tests)
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        package: [pipeline, backend]
+    defaults:
+      run:
+        working-directory: ${{ matrix.package }}
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
+        with:
+          persist-credentials: false
+
+      - uses: astral-sh/setup-uv@d4b2f3b6ecc6e67c4457f6d3e41ec42d3d0fcb86 # v5.4.2
+        with:
+          python-version: "3.12"
+
+      # --locked: fail if uv.lock is out of date with pyproject.toml, so the
+      # lockfile forks get is the one CI actually tested.
+      - name: Install
+        run: uv sync --locked --extra dev
+
+      - name: Ruff
+        run: uv run ruff check .
+
+      - name: Pytest
+        run: uv run pytest -q
+
+  frontend:
+    name: frontend (lint + typecheck + build)
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    defaults:
+      run:
+        working-directory: frontend
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
+        with:
+          persist-credentials: false
+
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version-file: frontend/.nvmrc
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      - run: npm ci --no-audit --no-fund
+      - run: npm run lint
+      - run: npm run typecheck
+
+      # Fails if frontend/city.config.json was edited instead of the root file
+      # (the build would silently overwrite it otherwise).
+      - name: City config in sync
+        run: |
+          node scripts/sync-city-config.mjs
+          git diff --exit-code -- city.config.json \
+            || { echo "::error::frontend/city.config.json is out of sync — edit the repo-root city.config.json instead"; exit 1; }
+
+      - run: npm run build
+        env:
+          NEXT_TELEMETRY_DISABLED: "1"
+
+  docker:
+    name: API image builds
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
+        with:
+          persist-credentials: false
+
+      - name: Build
+        run: docker build -t lakewatch-api .
+
+      - name: Smoke test (/health, no database needed)
+        run: |
+          docker run -d --name api -p 8000:8000 lakewatch-api
+          for i in $(seq 1 20); do
+            curl -fsS http://localhost:8000/health && exit 0
+            sleep 1
+          done
+          docker logs api
+          exit 1

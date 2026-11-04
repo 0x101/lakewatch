@@ -8,6 +8,7 @@ running the satellite observation pipeline for a lake.
 import argparse
 import logging
 import time
+from datetime import date
 
 from pipeline.db.database import get_session
 from pipeline.db.models import Lake
@@ -20,7 +21,7 @@ logger = logging.getLogger(__name__)
 
 
 def run_pipeline(
-    lake_slug: str, start_year: int = 2015, end_year: int = 2026
+    lake_slug: str, start_year: int = 2015, end_year: int | None = None
 ) -> dict:
     """Run the full satellite observation pipeline for a lake.
 
@@ -33,7 +34,7 @@ def run_pipeline(
     Args:
         lake_slug: Lake identifier (e.g., "my-lake-id").
         start_year: First year to process (inclusive).
-        end_year: Last year to process (inclusive).
+        end_year: Last year to process (inclusive). Defaults to this year.
 
     Returns:
         Backfill summary dict from backfill_lake().
@@ -42,6 +43,8 @@ def run_pipeline(
         ValueError: If lake not found in database.
     """
     t0 = time.time()
+    if end_year is None:
+        end_year = date.today().year
     logger.info("Starting pipeline for %s (%d-%d)", lake_slug, start_year, end_year)
 
     # 1. GEE authentication
@@ -50,6 +53,13 @@ def run_pipeline(
 
     # 2. Lake lookup
     session = get_session()
+    try:
+        return _run_with_session(session, lake_slug, start_year, end_year, t0)
+    finally:
+        session.close()
+
+
+def _run_with_session(session, lake_slug, start_year, end_year, t0) -> dict:
     lake = session.query(Lake).filter_by(id=lake_slug).first()
     if lake is None:
         raise ValueError(
@@ -100,8 +110,8 @@ def main():
     parser.add_argument(
         "--end-year",
         type=int,
-        default=2026,
-        help="End year for backfill (default: 2026)",
+        default=None,
+        help="End year for backfill (default: current year)",
     )
 
     args = parser.parse_args()

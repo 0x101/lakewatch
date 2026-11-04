@@ -7,6 +7,8 @@ be interrupted and resumed without re-processing finished years.
 
 import json
 import logging
+import os
+from datetime import date
 from pathlib import Path
 
 from pipeline.db.database import get_session
@@ -15,7 +17,15 @@ from pipeline.satellite.store import filter_cloudy, upsert_observations
 
 logger = logging.getLogger(__name__)
 
-CHECKPOINT_FILE = Path("pipeline/.backfill_checkpoint.json")
+# Anchored to the pipeline package directory (not the CWD), so the checkpoint
+# lands in the same gitignored spot whether you run from the repo root or from
+# pipeline/. Override with LAKEWATCH_CHECKPOINT_FILE if you need it elsewhere.
+CHECKPOINT_FILE = Path(
+    os.getenv(
+        "LAKEWATCH_CHECKPOINT_FILE",
+        str(Path(__file__).resolve().parent.parent / ".backfill_checkpoint.json"),
+    )
+)
 
 
 def load_checkpoint(lake_id: str) -> set[int]:
@@ -57,7 +67,11 @@ def save_checkpoint(lake_id: str, year: int) -> None:
         data[lake_id].append(year)
 
     CHECKPOINT_FILE.parent.mkdir(parents=True, exist_ok=True)
-    CHECKPOINT_FILE.write_text(json.dumps(data, indent=2))
+    # Write atomically so an interrupted run can't leave a truncated JSON file
+    # that breaks every subsequent resume.
+    tmp = CHECKPOINT_FILE.with_suffix(".json.tmp")
+    tmp.write_text(json.dumps(data, indent=2))
+    tmp.replace(CHECKPOINT_FILE)
     logger.debug("Checkpoint saved: %s year %d", lake_id, year)
 
 
@@ -65,7 +79,7 @@ def backfill_lake(
     lake_id: str,
     lake_geometry,
     start_year: int = 2015,
-    end_year: int = 2026,
+    end_year: int | None = None,
     session=None,
 ) -> dict:
     """Run historical backfill for a single lake, year by year.
@@ -78,15 +92,24 @@ def backfill_lake(
         lake_id: Lake identifier (slug).
         lake_geometry: ee.Geometry of the lake polygon.
         start_year: First year to process (inclusive).
-        end_year: Last year to process (inclusive).
+        end_year: Last year to process (inclusive). Defaults to the
+            current year.
         session: SQLAlchemy session. Created via get_session() if None.
 
     Returns:
         Summary dict with keys: lake_id, total_observations,
         years_completed, years_failed.
+
+    Note:
+        The current (still-in-progress) year and any future year are never
+        written to the checkpoint: they will gain new imagery, so a later
+        re-run must process them again instead of skipping them forever.
     """
     if session is None:
         session = get_session()
+    current_year = date.today().year
+    if end_year is None:
+        end_year = current_year
 
     completed = load_checkpoint(lake_id)
     total_observations = 0
@@ -112,7 +135,8 @@ def backfill_lake(
             usable = filter_cloudy(observations)
             count = upsert_observations(session, usable, lake_id)
 
-            save_checkpoint(lake_id, year)
+            if year < current_year:
+                save_checkpoint(lake_id, year)
             years_completed.append(year)
             total_observations += count
 
@@ -125,6 +149,9 @@ def backfill_lake(
 
         except Exception:
             logger.exception("Failed to process year %d for %s", year, lake_id)
+            # A failed DB write leaves the session unusable until rolled back;
+            # without this every later year (and lake) would fail too.
+            session.rollback()
             years_failed.append(year)
 
     summary = {

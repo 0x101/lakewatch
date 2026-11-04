@@ -1,0 +1,11 @@
+# Railway reads this from the repo root by default. Leave the service's
+# "Root Directory" empty (repo root) — the image needs both backend/ and
+# pipeline/db/.
+[build]
+builder = "DOCKERFILE"
+dockerfilePath = "Dockerfile"
+
+[deploy]
+healthcheckPath = "/health"
+restartPolicyType = "ON_FAILURE"
+restartPolicyMaxRetries = 3

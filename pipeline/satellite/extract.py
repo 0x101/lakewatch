@@ -197,6 +197,7 @@ def _extract_best_for_month(
 def extract_observations_for_year(
     lake_geometry: ee.Geometry,
     year: int,
+    months: range | list[int] | None = None,
 ) -> list[dict]:
     """Extract best-per-month observations for a lake in a given year.
 
@@ -209,6 +210,9 @@ def extract_observations_for_year(
     Args:
         lake_geometry: ee.Geometry of the lake polygon.
         year: Calendar year to process (e.g. 2024).
+        months: Optional subset of months (1-12) to query. Defaults to the
+            whole year. Incremental ingestion uses this to avoid re-querying
+            months that are already stored.
 
     Returns:
         List of dicts (up to 12) with keys: date, cloud_pct,
@@ -219,7 +223,7 @@ def extract_observations_for_year(
     logger.info("Extracting best-per-month observations for year %d", year)
 
     observations = []
-    for month in range(1, 13):
+    for month in months if months is not None else range(1, 13):
         obs = _extract_best_for_month(lake_geometry, year, month)
         if obs:
             observations.append(obs)

@@ -1,6 +1,8 @@
 """Data quality and insights endpoints."""
 
-from fastapi import APIRouter, Depends, Query
+from datetime import date
+
+from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
 
 from app.deps import get_db
@@ -41,6 +43,16 @@ from app.schemas.insights import (
 )
 
 router = APIRouter(prefix="/api")
+
+RANKING_CATEGORIES = {
+    "health",
+    "improving",
+    "declining",
+    "most_polluted",
+    "cleanest",
+    "largest",
+    "smallest",
+}
 
 
 @router.get("/insights/observations", response_model=RawObservationsResponse)
@@ -171,6 +183,12 @@ def lake_rankings(
     db: Session = Depends(get_db),
 ):
     """Lake rankings in multiple categories."""
+    if category not in RANKING_CATEGORIES:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Invalid category: {category}. "
+            f"Use one of: {', '.join(sorted(RANKING_CATEGORIES))}",
+        )
     entries = get_rankings(db, category, limit)
     return RankingsResponse(
         category=category,
@@ -180,11 +198,20 @@ def lake_rankings(
 
 @router.get("/insights/movers", response_model=MoversResponse)
 def year_over_year_movers(
-    year: int = Query(default=2024, ge=2016, le=2026),
+    year: int | None = Query(
+        default=None,
+        ge=2016,
+        description="Year to compare against the previous one (default: last full year)",
+    ),
     limit: int = Query(default=20, ge=1, le=100),
     db: Session = Depends(get_db),
 ):
     """Year-over-year water area movers: top improvers and decliners."""
+    this_year = date.today().year
+    if year is None:
+        year = this_year - 1
+    elif year > this_year:
+        raise HTTPException(status_code=400, detail=f"year must be <= {this_year}")
     data = get_movers(db, year, limit)
     return MoversResponse(
         year=data["year"],

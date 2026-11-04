@@ -67,12 +67,18 @@ imagery — only the computed numbers come back.
 
 ## Quickstart
 
-Prereqs: Python 3.12+, [uv](https://docs.astral.sh/uv/), Node 20+, a
-PostgreSQL database, a Mapbox token, and a Google Earth Engine account.
+Prereqs: Python 3.12+, [uv](https://docs.astral.sh/uv/), Node 20.9+, Docker
+(or any PostgreSQL 14+), a [Mapbox token](https://account.mapbox.com), and a
+Google Earth Engine service account. Optional system tools for timelapses:
+`ffmpeg` (MP4) and `gifsicle` (smaller GIFs) — without them the pipeline still
+runs and just skips/doesn't optimise those outputs.
+
+All commands below are run **from the repo root** unless a `cd` says otherwise.
+Each block is self-contained.
 
 ```bash
 git clone <your-fork-url> lakewatch && cd lakewatch
-cp .env.example .env          # then fill it in (see below)
+cp .env.example .env          # one .env for pipeline, backend AND frontend
 ```
 
 **1. Google Earth Engine.** Sign up at
@@ -82,14 +88,15 @@ project, and create a service account with a JSON key. Put the key path in
 [`docs/SETUP.md`](docs/SETUP.md).
 
 ```bash
-# Verify GEE auth works:
 cd pipeline && uv sync && uv run python -m pipeline.scripts.verify_gee
 ```
 
-**2. Database + schema.**
+**2. Database + schema.** Set
+`DATABASE_URL=postgresql://lakewatch:lakewatch@localhost:5433/lakewatch` in
+`.env` if you use the bundled Docker database.
 
 ```bash
-docker compose up -d db        # local PostgreSQL on :5433 (optional)
+docker compose up -d db
 cd pipeline && uv run python -m pipeline.scripts.init_db
 ```
 
@@ -97,28 +104,35 @@ cd pipeline && uv run python -m pipeline.scripts.init_db
 Bengaluru sample ships in `examples/`):
 
 ```bash
-uv run python -m pipeline.scripts.load_lakes examples/sample-lakes.geojson
+cd pipeline && uv run python -m pipeline.scripts.load_lakes ../examples/sample-lakes.geojson
 ```
 
-**4. Backfill satellite observations.**
+**4. Backfill satellite observations** (2015 → today; resumable):
 
 ```bash
-uv run python -m pipeline.scripts.run_pipeline --lake ulsoor-lake   # one lake
-# or, for every loaded lake:
-uv run python -m pipeline.scripts.full_backfill
+cd pipeline && uv run python -m pipeline.scripts.run_pipeline --lake ulsoor-lake   # one lake
+cd pipeline && uv run python -m pipeline.scripts.full_backfill                     # every lake
 ```
 
-**5. Run the API + dashboard.**
+**5. Run the API + dashboard** (two terminals):
 
 ```bash
-# backend (from repo root)
-cd backend && uv sync && uv run uvicorn app.main:app --reload   # :8000
+cd backend && uv sync && uv run uvicorn app.main:app --reload    # http://localhost:8000/docs
+```
 
-# frontend (new terminal)
-cd frontend && npm install && npm run dev                        # :3000
+```bash
+cd frontend && npm ci && npm run dev                              # http://localhost:3000
 ```
 
 Open http://localhost:3000.
+
+**Running the tests** (no credentials needed — Earth Engine and the DB are
+mocked):
+
+```bash
+cd pipeline && uv sync --extra dev && uv run pytest
+cd backend && uv sync --extra dev && uv run pytest
+```
 
 ---
 
@@ -141,7 +155,11 @@ Open http://localhost:3000.
 4. **Secrets** — set `DATABASE_URL`, `GEE_PROJECT_ID`, and
    `GEE_SERVICE_ACCOUNT_KEY_JSON` as GitHub Actions repo secrets. The included
    workflow (`.github/workflows/ingest.yml`) runs a 5-day incremental ingestion
-   on cron, so the dashboard stays current automatically.
+   on cron, so the dashboard stays current automatically. Until those secrets
+   exist it skips with a notice instead of failing. (GitHub disables scheduled
+   workflows on new forks — enable them under the fork's **Actions** tab.)
+5. **CI** — `.github/workflows/ci.yml` lints, tests and builds everything on
+   each push/PR and needs no secrets, so it works on a fresh fork.
 
 Detailed deploy steps (Railway for the backend + DB, Vercel for the frontend,
 R2 for timelapse assets) are in [`docs/SETUP.md`](docs/SETUP.md).

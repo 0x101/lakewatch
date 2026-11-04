@@ -3,7 +3,6 @@
 from datetime import date, timedelta
 from types import SimpleNamespace
 
-import pytest
 
 from pipeline.metrics.derived_stats import compute_derived_stats
 

@@ -1,8 +1,7 @@
 """Tests for observation storage module (upsert and cloud filtering)."""
 
-from unittest.mock import MagicMock, call
+from unittest.mock import MagicMock
 
-import pytest
 
 from pipeline.satellite.store import filter_cloudy, upsert_observations
 

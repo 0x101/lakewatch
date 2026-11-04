@@ -1,11 +1,13 @@
 """FastAPI application for LakeWatch."""
 
+import os
 from contextlib import asynccontextmanager
 
-from fastapi import FastAPI, HTTPException, Request
+from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from fastapi.staticfiles import StaticFiles
+from starlette.exceptions import HTTPException as StarletteHTTPException
 
 from app.config import CORS_ORIGINS
 from app.extensions import register_extensions
@@ -29,11 +31,13 @@ app = FastAPI(
     lifespan=lifespan,
 )
 
+# The API is public and read-only: no cookies/auth, so no credentialed CORS
+# and no write methods.
 app.add_middleware(
     CORSMiddleware,
     allow_origins=CORS_ORIGINS,
-    allow_credentials=True,
-    allow_methods=["*"],
+    allow_credentials=False,
+    allow_methods=["GET", "HEAD", "OPTIONS"],
     allow_headers=["*"],
 )
 
@@ -50,8 +54,6 @@ register_extensions(app)
 
 
 # Serve timelapse frames and assets as static files
-import os
-
 _frames_dir = os.path.join(os.path.dirname(__file__), "..", "..", "pipeline", "data", "frames")
 _assets_dir = os.path.join(os.path.dirname(__file__), "..", "..", "pipeline", "data", "assets")
 if os.path.isdir(_frames_dir):
@@ -60,12 +62,15 @@ if os.path.isdir(_assets_dir):
     app.mount("/assets", StaticFiles(directory=_assets_dir), name="assets")
 
 
-@app.exception_handler(HTTPException)
-async def http_exception_handler(request: Request, exc: HTTPException):
+# Registered on Starlette's base class so router-level 404/405s (unknown
+# paths) get the same {"error": ...} shape as the HTTPExceptions we raise.
+@app.exception_handler(StarletteHTTPException)
+async def http_exception_handler(request: Request, exc: StarletteHTTPException):
     """Return consistent error format."""
     return JSONResponse(
         status_code=exc.status_code,
         content={"error": exc.detail},
+        headers=getattr(exc, "headers", None),
     )
 
 

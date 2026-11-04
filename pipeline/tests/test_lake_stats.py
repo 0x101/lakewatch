@@ -4,7 +4,6 @@ from datetime import date
 from types import SimpleNamespace
 from unittest.mock import MagicMock, patch
 
-import pytest
 
 
 def _make_obs(obs_date, water_area_m2=150000.0, algae_fraction=0.05):

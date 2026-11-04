@@ -1,9 +1,9 @@
 """Full backfill pipeline: GEE auth → batch backfill → stats refresh → export.
 
-One command to populate all 50 lakes with real satellite data.
+One command to populate every loaded lake with real satellite data.
 
 Usage:
-  python -m pipeline.scripts.full_backfill                     # default: 50 lakes
+  python -m pipeline.scripts.full_backfill                     # default: all lakes
   python -m pipeline.scripts.full_backfill --lakes 100         # top 100
   python -m pipeline.scripts.full_backfill --batch-size 3      # smaller batches
   python -m pipeline.scripts.full_backfill --dry-run            # just verify setup
@@ -47,7 +47,7 @@ def verify_database():
     return count
 
 
-def run_backfill(lake_limit: int, batch_size: int, pause_seconds: int):
+def run_backfill(lake_limit: int | None, batch_size: int, pause_seconds: int):
     """Run the batch backfill."""
     logger.info("Step 3/4: Running batch backfill...")
     from pipeline.scripts.batch_backfill import batch_backfill
@@ -95,7 +95,10 @@ def main():
         description="Full backfill pipeline: GEE → backfill → stats → export"
     )
     parser.add_argument(
-        "--lakes", type=int, default=50, help="Number of lakes to process (default: 50)"
+        "--lakes",
+        type=int,
+        default=None,
+        help="Number of lakes to process, largest first (default: all)",
     )
     parser.add_argument(
         "--batch-size", type=int, default=5, help="Lakes per batch (default: 5)"
@@ -117,7 +120,7 @@ def main():
         if args.dry_run:
             logger.info(
                 "DRY RUN: Would process top %d of %d lakes",
-                min(args.lakes, lake_count),
+                min(args.lakes or lake_count, lake_count),
                 lake_count,
             )
             return

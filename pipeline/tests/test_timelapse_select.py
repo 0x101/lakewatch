@@ -1,10 +1,9 @@
 """Tests for timelapse best-per-month frame selection."""
 
-from datetime import date
 
 import pytest
 from sqlalchemy import Column, Date, Float, Integer, String, create_engine, text
-from sqlalchemy.orm import Session, declarative_base, sessionmaker
+from sqlalchemy.orm import declarative_base, sessionmaker
 
 from pipeline.timelapse.select import (
     _select_best_per_month_python,
